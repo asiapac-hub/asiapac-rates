@@ -1,4 +1,4 @@
-// app.js (FULL) — robust Excel parsing + debug logs + contains fallback
+// app.js (FULL) — robust Excel parsing + debug logs + 40HQ/40HC support
 // --------------------------------------------------
 
 const EXCEL_PATH = "data/tarifas.xlsx";
@@ -54,6 +54,8 @@ function safeNOR(value) {
   return v === "" ? "N/A" : v;
 }
 
+// -------------------- rendering --------------------
+
 function renderSelect(selectEl, values, placeholder) {
   selectEl.innerHTML = "";
   const opt0 = document.createElement("option");
@@ -69,15 +71,14 @@ function renderSelect(selectEl, values, placeholder) {
   });
 }
 
-// -------------------- rendering --------------------
-
 function renderResults(rows) {
   if (!rows.length) {
     elResults.innerHTML = `<p class="status">No se encontraron tarifas para esa combinación.</p>`;
     return;
   }
 
-  const headers = ["POL", "POD", "NOR", "20GP", "40HC", "Validez", "Dias libres", "Naviera", "Agente"];
+  // ✅ Visual header fix: NAVIERA -> Naviera (no cambia el campo interno)
+  const headers = ["POL", "POD", "NOR", "20GP", "40HC", "Validez", "Días libres", "Naviera", "Agente"];
 
   const thead = `
     <thead>
@@ -98,7 +99,7 @@ function renderResults(rows) {
           <td>${norm(r["40HC"])}</td>
           <td>${norm(r.Validez)}</td>
           <td>${norm(r["Dias libres"])}</td>
-          <td>${norm(r.Naviera)}</td>
+          <td>${norm(r.NAVIERA)}</td>
           <td>${norm(r.Agente)}</td>
         </tr>
       `
@@ -107,8 +108,11 @@ function renderResults(rows) {
     </tbody>
   `;
 
+  // Use table-wrap so it works on mobile (horizontal scroll)
   elResults.innerHTML = `<div class="table-wrap"><table class="table">${thead}${tbody}</table></div>`;
 }
+
+// -------------------- Local charges (TABLE + CÁLCULO + IVA badge) --------------------
 
 function renderLocalCharges() {
   if (!localCharges.length) {
@@ -116,7 +120,7 @@ function renderLocalCharges() {
     return;
   }
 
-  // helper: tomar valor por posibles llaves
+  // helper: pick by possible keys
   const pick = (obj, keys) => {
     for (const k of keys) {
       if (k in obj) return obj[k];
@@ -126,34 +130,28 @@ function renderLocalCharges() {
 
   const s = (v) => (v ?? "").toString().trim();
 
-  // normaliza indicador de IVA a "+ IVA" o "N/A"
+  // Normalize IVA indicator to "+ IVA" or "N/A"
   const ivaBadge = (v) => {
     const raw = s(v);
     const low = raw.toLowerCase();
 
     if (!low) return "N/A";
-
-    // casos explícitos
     if (low.includes("+ iva")) return "+ IVA";
     if (low === "iva") return "+ IVA";
     if (low === "si" || low === "sí" || low === "yes" || low === "true" || low === "1") return "+ IVA";
     if (low === "n/a" || low === "na" || low === "no" || low === "false" || low === "0") return "N/A";
-
-    // inferencia: si menciona iva -> + IVA, si no -> N/A (o mostrar tal cual si quieres)
     if (low.includes("iva")) return "+ IVA";
 
-    // si el Excel ya trae algo raro, lo mostramos pero si está vacío cae en N/A
     return raw || "N/A";
   };
 
-  // Mapear filas a estructura estándar (acepta mayúsculas, tildes y variantes)
   const rows = localCharges
     .map((r) => {
       const Concepto = s(pick(r, ["Concepto", "CONCEPTO", "concepto"]));
-      const Detalle  = s(pick(r, ["Detalle", "DETALLE", "detalle"]));
-      const Calculo  = s(pick(r, ["Cálculo", "CÁLCULO", "CALCULO", "calculo", "cálculo"]));
+      const Detalle = s(pick(r, ["Detalle", "DETALLE", "detalle"]));
+      const Calculo = s(pick(r, ["Cálculo", "CÁLCULO", "CALCULO", "calculo", "cálculo"]));
 
-      // Columna IVA / indicador (puede llamarse de varias formas)
+      // IVA indicator column (multiple possible names)
       const IVAraw = pick(r, ["IVA", "iva", "+ IVA", "+iva", "APLICA IVA", "Aplica IVA", "IMPUTA IVA", "Imputa IVA"]);
 
       return {
@@ -163,7 +161,6 @@ function renderLocalCharges() {
         IVA: ivaBadge(IVAraw),
       };
     })
-    // filtra filas realmente vacías
     .filter((x) => x.Concepto || x.Detalle || x.Calculo);
 
   if (!rows.length) {
@@ -171,7 +168,6 @@ function renderLocalCharges() {
     return;
   }
 
-  // Render como TABLA (igual a antes) + columnas nuevas
   elLocal.innerHTML = `
     <div class="table-wrap">
       <table class="table">
@@ -215,7 +211,6 @@ function buildHeaderMap(rawHeaders) {
 
 /**
  * Find a column index by checking if the normalized header contains ALL tokens.
- * Example tokens: ["40","hc"] or ["40hc"].
  */
 function findIdxByContains(headerMap, tokens) {
   const keys = Object.keys(headerMap);
@@ -228,23 +223,21 @@ function findIdxByContains(headerMap, tokens) {
 }
 
 function getFieldFromRow(rowArr, headerMap, possibleNames, containsFallbackTokens = []) {
-  // 1) Try aliases exact/normalized
+  // Try aliases
   for (const name of possibleNames) {
     const idx = headerMap[normKey(name)];
     if (typeof idx !== "undefined") {
       const v = norm(rowArr[idx]);
-      if (v !== "") return v;
-      return ""; // column exists but cell is empty
+      // If column exists but cell empty, return empty
+      return v;
     }
   }
 
-  // 2) If not found by aliases, try "contains tokens" fallback
+  // Try contains fallback
   if (containsFallbackTokens.length) {
     const idx = findIdxByContains(headerMap, containsFallbackTokens);
     if (typeof idx !== "undefined") {
-      const v = norm(rowArr[idx]);
-      if (v !== "") return v;
-      return "";
+      return norm(rowArr[idx]);
     }
   }
 
@@ -252,7 +245,8 @@ function getFieldFromRow(rowArr, headerMap, possibleNames, containsFallbackToken
 }
 
 /**
- * Attempt to locate header row when sheet has titles above.
+ * Locate header row if the sheet has title rows above table.
+ * Searches for a row containing POL and POD (or synonyms).
  */
 function findHeaderRowIndex(rawMatrix, maxScanRows = 25) {
   const synonymsPOL = ["pol", "puerto de embarque", "puerto embarque", "puerto origen", "origen"];
@@ -305,56 +299,53 @@ async function loadExcel() {
     console.log("NORMALIZED HEADERS:", rawHeaders.map(normKey));
     console.log("HEADER MAP:", headerMap);
 
-    // Aliases base (por nombre). El fallback "contains" cubrirá headers con texto extra.
     const aliases = {
       POL: ["POL", "PUERTO DE EMBARQUE", "PUERTO EMBARQUE", "PUERTO ORIGEN", "ORIGEN"],
       POD: ["POD", "PUERTO DE DESTINO", "PUERTO DESTINO", "DESTINO"],
       NOR: ["NOR", "NON OPERATIVE REEFER", "NON OPPERATIVE REEFER"],
 
       "20GP": ["20GP", "20 GP", "20'GP", "20'", "20FT", "20 FT"],
-      // Nota: muchos usan HQ en vez de HC
+
+      // Support both 40HC and 40HQ (your excel uses 40HQ)
       "40HC": ["40HC", "40 HC", "40'HC", "40' HC", "40HQ", "40 HQ", "40'HQ", "40' HQ", "40FT HC", "40FT HQ"],
 
       Validez: ["VALIDEZ", "VALIDEZ TARIFA", "VALIDITY", "VALID"],
       "Dias libres": ["DIAS LIBRES", "DÍAS LIBRES", "DIAS LIBRES DESTINO", "FREE DAYS"],
-      Naviera: ["NAVIERA", "LINEA", "LÍNEA", "CARRIER"],
+      NAVIERA: ["NAVIERA", "LINEA", "LÍNEA", "CARRIER"],
       Agente: ["AGENTE", "AGENTE ORIGEN", "FREIGHT FORWARDER", "FORWARDER", "EMBARCADOR", "SHIPPER AGENT"],
     };
 
     const rows = raw.slice(headerRowIdx + 1);
 
     rates = rows
-      .map((rowArr) => {
-        const row = {
-          POL: getFieldFromRow(rowArr, headerMap, aliases.POL, ["pol"]),
-          POD: getFieldFromRow(rowArr, headerMap, aliases.POD, ["pod"]),
-          NOR: getFieldFromRow(rowArr, headerMap, aliases.NOR, ["nor"]),
+      .map((rowArr) => ({
+        POL: getFieldFromRow(rowArr, headerMap, aliases.POL, ["pol"]),
+        POD: getFieldFromRow(rowArr, headerMap, aliases.POD, ["pod"]),
+        NOR: getFieldFromRow(rowArr, headerMap, aliases.NOR, ["nor"]),
 
-          // containsFallbackTokens: esto captura headers tipo "40HC (USD)" o "40HQ ALL IN"
-          "20GP": getFieldFromRow(rowArr, headerMap, aliases["20GP"], ["20", "gp"]),
-          "40HC": getFieldFromRow(rowArr, headerMap, aliases["40HC"], ["40", "hc"]) ||
-                  getFieldFromRow(rowArr, headerMap, aliases["40HC"], ["40", "hq"]) ||
-                  getFieldFromRow(rowArr, headerMap, aliases["40HC"], ["40hc"]) ||
-                  getFieldFromRow(rowArr, headerMap, aliases["40HC"], ["40hq"]),
+        "20GP": getFieldFromRow(rowArr, headerMap, aliases["20GP"], ["20", "gp"]),
 
-          Validez: getFieldFromRow(rowArr, headerMap, aliases.Validez, ["validez"]),
-          "Dias libres": getFieldFromRow(rowArr, headerMap, aliases["Dias libres"], ["dias", "libres"]),
-          Naviera: getFieldFromRow(rowArr, headerMap, aliases.NAVIERA, ["naviera"]),
-          Agente: getFieldFromRow(rowArr, headerMap, aliases.Agente, ["agente"]),
-        };
-        return row;
-      })
+        // "40HC" field uses excel column 40HQ/40HC whichever exists
+        "40HC":
+          getFieldFromRow(rowArr, headerMap, aliases["40HC"], ["40", "hc"]) ||
+          getFieldFromRow(rowArr, headerMap, aliases["40HC"], ["40", "hq"]) ||
+          getFieldFromRow(rowArr, headerMap, aliases["40HC"], ["40hc"]) ||
+          getFieldFromRow(rowArr, headerMap, aliases["40HC"], ["40hq"]),
+
+        Validez: getFieldFromRow(rowArr, headerMap, aliases.Validez, ["validez"]),
+        "Dias libres": getFieldFromRow(rowArr, headerMap, aliases["Dias libres"], ["dias", "libres"]),
+        NAVIERA: getFieldFromRow(rowArr, headerMap, aliases.NAVIERA, ["naviera"]),
+        Agente: getFieldFromRow(rowArr, headerMap, aliases.Agente, ["agente"]),
+      }))
       .filter((r) => r.POL || r.POD);
 
     console.log("Parsed rates length:", rates.length);
     console.log("Parsed sample (first 10):", rates.slice(0, 10));
 
-    // Extra debug: detect if 40HC column was ever found
     const any40 = rates.some((r) => norm(r["40HC"]) !== "");
-    console.log("Any 40HC values detected?:", any40);
+    console.log("Any 40HC/HQ values detected?:", any40);
 
     if (!any40) {
-      // show potential headers that contain "40"
       const candidates = Object.keys(headerMap).filter((k) => k.includes("40"));
       console.warn("No se detectó 40HC/HQ. Headers que contienen '40':", candidates);
     }
@@ -372,7 +363,7 @@ async function loadExcel() {
     console.warn(`[RateFinder] No existe hoja "${SHEET_LOCAL}" (opcional).`);
   }
 
-  // ---------------- Populate dropdowns ----------------
+  // Populate dropdowns
   const pols = uniqueSorted(rates.map((r) => r.POL).filter(Boolean));
   const pods = uniqueSorted(rates.map((r) => r.POD).filter(Boolean));
 
