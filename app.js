@@ -107,7 +107,7 @@ function renderResults(rows) {
     </tbody>
   `;
 
-  elResults.innerHTML = `<table class="table">${thead}${tbody}</table>`;
+  elResults.innerHTML = `<div class="table-wrap"><table class="table">${thead}${tbody}</table></div>`;
 }
 
 function renderLocalCharges() {
