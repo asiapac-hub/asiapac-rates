@@ -94,7 +94,7 @@ function renderResults(rows) {
         <tr>
           <td>${norm(r.POL)}</td>
           <td>${norm(r.POD)}</td>
-          <td><span class="badge">${safeNOR(r.NOR)}</span></td>
+          <td>${safeNOR(r.NOR)}</td>
           <td>${norm(r["20GP"])}</td>
           <td>${norm(r["40HC"])}</td>
           <td>${norm(r.Validez)}</td>
