@@ -1,0 +1,123 @@
+:root{
+  --bg:#ffffff;
+  --text:#1a1a1a;
+  --muted:#666;
+  --card:#f6f7f9;
+  --border:#e2e5ea;
+  --btn:#ff4a1c;
+}
+
+*{ box-sizing:border-box; }
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+.container{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 24px 16px 60px;
+}
+.header{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  padding: 8px 0 18px;
+}
+.logo{
+  max-height: 70px;
+  width:auto;
+}
+.card{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  margin-top: 14px;
+}
+.title{
+  margin:0 0 14px;
+  font-size: 22px;
+}
+.subtitle{
+  margin:0 0 12px;
+  font-size: 18px;
+}
+.filters{
+  display:grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items:end;
+}
+.field label{
+  display:block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+select{
+  width:100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background:#fff;
+}
+.btn{
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--btn);
+  color:#fff;
+  font-weight: 600;
+  cursor:pointer;
+}
+.btn:disabled{
+  opacity:.6;
+  cursor:not-allowed;
+}
+.status{
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.table{
+  width:100%;
+  border-collapse: collapse;
+  background:#fff;
+  border-radius: 12px;
+  overflow:hidden;
+  border: 1px solid var(--border);
+}
+.table th, .table td{
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  text-align:left;
+  vertical-align: top;
+}
+.table th{
+  background:#fbfbfc;
+  font-size: 12px;
+  color: var(--muted);
+}
+.badge{
+  display:inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background:#fff;
+  font-size: 12px;
+  color: var(--muted);
+}
+.local{
+  background:#fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 13px;
+}
+@media (max-width: 720px){
+  .filters{ grid-template-columns: 1fr; }
+  .btn{ width:100%; }
+}
