@@ -116,7 +116,7 @@ function renderLocalCharges() {
     return;
   }
 
-  // Helpers para leer claves en mayúsculas/minúsculas/tildes
+  // helper: tomar valor por posibles llaves
   const pick = (obj, keys) => {
     for (const k of keys) {
       if (k in obj) return obj[k];
@@ -124,72 +124,80 @@ function renderLocalCharges() {
     return "";
   };
 
-  const normStr = (v) => (v ?? "").toString().trim();
+  const s = (v) => (v ?? "").toString().trim();
 
-  // Normaliza indicador de IVA a "+ IVA" o "N/A"
-  const ivaLabel = (v) => {
-    const s = normStr(v).toLowerCase();
-    if (!s) return "N/A";
-    if (s.includes("+ iva")) return "+ IVA";
-    if (s === "iva") return "+ IVA";
-    if (s === "si" || s === "sí" || s === "yes" || s === "true" || s === "1") return "+ IVA";
-    if (s === "n/a" || s === "na" || s === "no" || s === "false" || s === "0") return "N/A";
-    // cualquier texto: si menciona iva -> + IVA, si no -> usar tal cual
-    if (s.includes("iva")) return "+ IVA";
-    return normStr(v) || "N/A";
+  // normaliza indicador de IVA a "+ IVA" o "N/A"
+  const ivaBadge = (v) => {
+    const raw = s(v);
+    const low = raw.toLowerCase();
+
+    if (!low) return "N/A";
+
+    // casos explícitos
+    if (low.includes("+ iva")) return "+ IVA";
+    if (low === "iva") return "+ IVA";
+    if (low === "si" || low === "sí" || low === "yes" || low === "true" || low === "1") return "+ IVA";
+    if (low === "n/a" || low === "na" || low === "no" || low === "false" || low === "0") return "N/A";
+
+    // inferencia: si menciona iva -> + IVA, si no -> N/A (o mostrar tal cual si quieres)
+    if (low.includes("iva")) return "+ IVA";
+
+    // si el Excel ya trae algo raro, lo mostramos pero si está vacío cae en N/A
+    return raw || "N/A";
   };
 
-  // Mapear filas a estructura estándar
+  // Mapear filas a estructura estándar (acepta mayúsculas, tildes y variantes)
   const rows = localCharges
     .map((r) => {
-      const Concepto = normStr(pick(r, ["Concepto", "CONCEPTO", "CONCEPTO ", "concepto"]));
-      const Detalle = normStr(pick(r, ["Detalle", "DETALLE", "DETALLE ", "detalle"]));
-      const Calculo = normStr(pick(r, ["Cálculo", "CÁLCULO", "CALCULO", "CALCULO ", "calculo", "cálculo"]));
-      const IVAraw = pick(r, ["IVA", "iva", "+ IVA", "+iva", "APLICA IVA", "Aplica IVA"]);
+      const Concepto = s(pick(r, ["Concepto", "CONCEPTO", "concepto"]));
+      const Detalle  = s(pick(r, ["Detalle", "DETALLE", "detalle"]));
+      const Calculo  = s(pick(r, ["Cálculo", "CÁLCULO", "CALCULO", "calculo", "cálculo"]));
+
+      // Columna IVA / indicador (puede llamarse de varias formas)
+      const IVAraw = pick(r, ["IVA", "iva", "+ IVA", "+iva", "APLICA IVA", "Aplica IVA", "IMPUTA IVA", "Imputa IVA"]);
 
       return {
         Concepto,
         Detalle,
         Calculo,
-        IVA: ivaLabel(IVAraw),
+        IVA: ivaBadge(IVAraw),
       };
     })
-    .filter((x) => x.Concepto || x.Detalle || x.Calculo); // evita filas vacías
+    // filtra filas realmente vacías
+    .filter((x) => x.Concepto || x.Detalle || x.Calculo);
 
   if (!rows.length) {
     elLocal.innerHTML = `<p class="status">La hoja "${SHEET_LOCAL}" no contiene filas legibles.</p>`;
     return;
   }
 
-  // Render como tarjetas (mejor en móvil y se ve bien también en desktop)
+  // Render como TABLA (igual a antes) + columnas nuevas
   elLocal.innerHTML = `
-    <div class="local-cards">
-      ${rows
-        .map(
-          (r) => `
-        <div class="local-card">
-          <p class="lc-title">${r.Concepto || "Gasto local"}</p>
-
-          ${r.Detalle ? `
-            <div class="lc-row">
-              <div class="lc-key">Detalle</div>
-              <div class="lc-val">${r.Detalle}</div>
-            </div>` : ``}
-
-          ${r.Calculo ? `
-            <div class="lc-row">
-              <div class="lc-key">Cálculo</div>
-              <div class="lc-val">${r.Calculo}</div>
-            </div>` : ``}
-
-          <div class="lc-row">
-            <div class="lc-key">IVA</div>
-            <div class="lc-val">${r.IVA}</div>
-          </div>
-        </div>
-      `
-        )
-        .join("")}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Concepto</th>
+            <th>Detalle</th>
+            <th>Cálculo</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows
+            .map(
+              (r) => `
+            <tr>
+              <td>${r.Concepto}</td>
+              <td>${r.Detalle}</td>
+              <td>${r.Calculo}</td>
+              <td><span class="badge">${r.IVA}</span></td>
+            </tr>
+          `
+            )
+            .join("")}
+        </tbody>
+      </table>
     </div>
   `;
 }
