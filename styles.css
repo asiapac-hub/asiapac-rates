@@ -215,3 +215,45 @@ select{
     font-size: 19px;
   }
 }
+/* -------- Local charges: responsive layout -------- */
+
+.local-cards{
+  display: grid;
+  gap: 10px;
+}
+
+.local-card{
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.local-card .lc-title{
+  font-weight: 700;
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+
+.local-card .lc-row{
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+  font-size: 13px;
+  margin: 4px 0;
+}
+
+.local-card .lc-key{
+  color: var(--muted);
+}
+
+.local-card .lc-val{
+  word-break: break-word;
+}
+
+/* En pantallas muy pequeñas, apila key/val */
+@media (max-width: 420px){
+  .local-card .lc-row{
+    grid-template-columns: 1fr;
+  }
+}
