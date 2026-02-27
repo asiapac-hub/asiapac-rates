@@ -116,38 +116,82 @@ function renderLocalCharges() {
     return;
   }
 
-  const hasConcepto = localCharges.some(
-    (r) => "Concepto" in r || "Detalle" in r || "CONCEPTO" in r || "DETALLE" in r
-  );
+  // Helpers para leer claves en mayúsculas/minúsculas/tildes
+  const pick = (obj, keys) => {
+    for (const k of keys) {
+      if (k in obj) return obj[k];
+    }
+    return "";
+  };
 
-  if (hasConcepto) {
-    const rows = localCharges
-      .map((r) => ({
-        Concepto: norm(r.Concepto ?? r.CONCEPTO),
-        Detalle: norm(r.Detalle ?? r.DETALLE),
-      }))
-      .filter((r) => r.Concepto || r.Detalle);
+  const normStr = (v) => (v ?? "").toString().trim();
 
-    elLocal.innerHTML = `
-      <table class="table">
-        <thead><tr><th>Concepto</th><th>Detalle</th></tr></thead>
-        <tbody>
-          ${rows.map((r) => `<tr><td>${r.Concepto}</td><td>${r.Detalle}</td></tr>`).join("")}
-        </tbody>
-      </table>
-    `;
+  // Normaliza indicador de IVA a "+ IVA" o "N/A"
+  const ivaLabel = (v) => {
+    const s = normStr(v).toLowerCase();
+    if (!s) return "N/A";
+    if (s.includes("+ iva")) return "+ IVA";
+    if (s === "iva") return "+ IVA";
+    if (s === "si" || s === "sí" || s === "yes" || s === "true" || s === "1") return "+ IVA";
+    if (s === "n/a" || s === "na" || s === "no" || s === "false" || s === "0") return "N/A";
+    // cualquier texto: si menciona iva -> + IVA, si no -> usar tal cual
+    if (s.includes("iva")) return "+ IVA";
+    return normStr(v) || "N/A";
+  };
+
+  // Mapear filas a estructura estándar
+  const rows = localCharges
+    .map((r) => {
+      const Concepto = normStr(pick(r, ["Concepto", "CONCEPTO", "CONCEPTO ", "concepto"]));
+      const Detalle = normStr(pick(r, ["Detalle", "DETALLE", "DETALLE ", "detalle"]));
+      const Calculo = normStr(pick(r, ["Cálculo", "CÁLCULO", "CALCULO", "CALCULO ", "calculo", "cálculo"]));
+      const IVAraw = pick(r, ["IVA", "iva", "+ IVA", "+iva", "APLICA IVA", "Aplica IVA"]);
+
+      return {
+        Concepto,
+        Detalle,
+        Calculo,
+        IVA: ivaLabel(IVAraw),
+      };
+    })
+    .filter((x) => x.Concepto || x.Detalle || x.Calculo); // evita filas vacías
+
+  if (!rows.length) {
+    elLocal.innerHTML = `<p class="status">La hoja "${SHEET_LOCAL}" no contiene filas legibles.</p>`;
     return;
   }
 
-  const lines = [];
-  for (const r of localCharges) {
-    for (const k of Object.keys(r)) {
-      const v = norm(r[k]);
-      if (v) lines.push(v);
-    }
-  }
+  // Render como tarjetas (mejor en móvil y se ve bien también en desktop)
+  elLocal.innerHTML = `
+    <div class="local-cards">
+      ${rows
+        .map(
+          (r) => `
+        <div class="local-card">
+          <p class="lc-title">${r.Concepto || "Gasto local"}</p>
 
-  elLocal.innerHTML = `<ul>${lines.map((x) => `<li>${x}</li>`).join("")}</ul>`;
+          ${r.Detalle ? `
+            <div class="lc-row">
+              <div class="lc-key">Detalle</div>
+              <div class="lc-val">${r.Detalle}</div>
+            </div>` : ``}
+
+          ${r.Calculo ? `
+            <div class="lc-row">
+              <div class="lc-key">Cálculo</div>
+              <div class="lc-val">${r.Calculo}</div>
+            </div>` : ``}
+
+          <div class="lc-row">
+            <div class="lc-key">IVA</div>
+            <div class="lc-val">${r.IVA}</div>
+          </div>
+        </div>
+      `
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 // -------------------- parsing logic --------------------
