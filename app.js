@@ -77,7 +77,7 @@ function renderResults(rows) {
     return;
   }
 
-  const headers = ["POL", "POD", "NOR", "20GP", "40HC", "Validez", "Dias libres", "NAVIERA", "Agente"];
+  const headers = ["POL", "POD", "NOR", "20GP", "40HC", "Validez", "Dias libres", "Naviera", "Agente"];
 
   const thead = `
     <thead>
