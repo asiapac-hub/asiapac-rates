@@ -98,7 +98,7 @@ function renderResults(rows) {
           <td>${norm(r["40HC"])}</td>
           <td>${norm(r.Validez)}</td>
           <td>${norm(r["Dias libres"])}</td>
-          <td>${norm(r.NAVIERA)}</td>
+          <td>${norm(r.Naviera)}</td>
           <td>${norm(r.Agente)}</td>
         </tr>
       `
@@ -317,7 +317,7 @@ async function loadExcel() {
 
       Validez: ["VALIDEZ", "VALIDEZ TARIFA", "VALIDITY", "VALID"],
       "Dias libres": ["DIAS LIBRES", "DÍAS LIBRES", "DIAS LIBRES DESTINO", "FREE DAYS"],
-      NAVIERA: ["NAVIERA", "LINEA", "LÍNEA", "CARRIER"],
+      Naviera: ["NAVIERA", "LINEA", "LÍNEA", "CARRIER"],
       Agente: ["AGENTE", "AGENTE ORIGEN", "FREIGHT FORWARDER", "FORWARDER", "EMBARCADOR", "SHIPPER AGENT"],
     };
 
@@ -339,7 +339,7 @@ async function loadExcel() {
 
           Validez: getFieldFromRow(rowArr, headerMap, aliases.Validez, ["validez"]),
           "Dias libres": getFieldFromRow(rowArr, headerMap, aliases["Dias libres"], ["dias", "libres"]),
-          NAVIERA: getFieldFromRow(rowArr, headerMap, aliases.NAVIERA, ["naviera"]),
+          Naviera: getFieldFromRow(rowArr, headerMap, aliases.NAVIERA, ["naviera"]),
           Agente: getFieldFromRow(rowArr, headerMap, aliases.Agente, ["agente"]),
         };
         return row;
