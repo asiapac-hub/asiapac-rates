@@ -1,9 +1,10 @@
-// app.js (FULL) — robust Excel parsing + debug logs + 40HQ/40HC support
-// --------------------------------------------------
+// app.js (FULL) — robust Excel parsing + debug logs + 40HQ/40HC support + Local Charges table + Remarks bullets
+// -----------------------------------------------------------------------------------------------------------
 
 const EXCEL_PATH = "data/tarifas.xlsx";
 const SHEET_RATES = "RATES";
 const SHEET_LOCAL = "GASTOS_LOCALES";
+const SHEET_REMARKS = "REMARKS";
 
 // UI elements
 const elPOL = document.getElementById("pol");
@@ -11,11 +12,13 @@ const elPOD = document.getElementById("pod");
 const elBtn = document.getElementById("searchBtn");
 const elResults = document.getElementById("results");
 const elLocal = document.getElementById("localCharges");
+const elRemarks = document.getElementById("remarksSection");
 const elStatus = document.getElementById("status");
 
 // Data holders
 let rates = [];
 let localCharges = [];
+let remarks = [];
 
 // -------------------- helpers --------------------
 
@@ -77,8 +80,8 @@ function renderResults(rows) {
     return;
   }
 
-  // ✅ Visual header fix: NAVIERA -> Naviera (no cambia el campo interno)
-  const headers = ["POL", "POD", "NOR", "20GP", "40HC", "Validez", "Días libres", "Naviera", "Agente"];
+  // ✅ Visual header fix: "NAVIERA" -> "Naviera"
+  const headers = ["POL", "POD", "NOR", "20GP", "40HC", "Validez", "Dias libres", "Naviera", "Agente"];
 
   const thead = `
     <thead>
@@ -94,6 +97,7 @@ function renderResults(rows) {
         <tr>
           <td>${norm(r.POL)}</td>
           <td>${norm(r.POD)}</td>
+          <!-- ✅ NOR now renders as plain text (same style as 20GP/40HC) -->
           <td>${safeNOR(r.NOR)}</td>
           <td>${norm(r["20GP"])}</td>
           <td>${norm(r["40HC"])}</td>
@@ -108,7 +112,7 @@ function renderResults(rows) {
     </tbody>
   `;
 
-  // Use table-wrap so it works on mobile (horizontal scroll)
+  // Responsive: wrap table so it scrolls horizontally on mobile
   elResults.innerHTML = `<div class="table-wrap"><table class="table">${thead}${tbody}</table></div>`;
 }
 
@@ -154,12 +158,7 @@ function renderLocalCharges() {
       // IVA indicator column (multiple possible names)
       const IVAraw = pick(r, ["IVA", "iva", "+ IVA", "+iva", "APLICA IVA", "Aplica IVA", "IMPUTA IVA", "Imputa IVA"]);
 
-      return {
-        Concepto,
-        Detalle,
-        Calculo,
-        IVA: ivaBadge(IVAraw),
-      };
+      return { Concepto, Detalle, Calculo, IVA: ivaBadge(IVAraw) };
     })
     .filter((x) => x.Concepto || x.Detalle || x.Calculo);
 
@@ -198,6 +197,37 @@ function renderLocalCharges() {
   `;
 }
 
+// -------------------- Remarks (bullet points) --------------------
+
+function renderRemarks() {
+  if (!elRemarks) return; // if section not present in index.html, just skip
+
+  if (!remarks || !remarks.length) {
+    elRemarks.innerHTML = `<p class="status">No remarks available.</p>`;
+    return;
+  }
+
+  // Flatten any cell values into bullet lines (supports 1-column or multi-column sheets)
+  const lines = [];
+  for (const row of remarks) {
+    for (const val of Object.values(row)) {
+      const v = norm(val);
+      if (v) lines.push(v);
+    }
+  }
+
+  if (!lines.length) {
+    elRemarks.innerHTML = `<p class="status">No remarks available.</p>`;
+    return;
+  }
+
+  elRemarks.innerHTML = `
+    <ul class="remarks-list">
+      ${lines.map((line) => `<li>${line}</li>`).join("")}
+    </ul>
+  `;
+}
+
 // -------------------- parsing logic --------------------
 
 function buildHeaderMap(rawHeaders) {
@@ -223,17 +253,15 @@ function findIdxByContains(headerMap, tokens) {
 }
 
 function getFieldFromRow(rowArr, headerMap, possibleNames, containsFallbackTokens = []) {
-  // Try aliases
+  // Try aliases (direct/normalized)
   for (const name of possibleNames) {
     const idx = headerMap[normKey(name)];
     if (typeof idx !== "undefined") {
-      const v = norm(rowArr[idx]);
-      // If column exists but cell empty, return empty
-      return v;
+      return norm(rowArr[idx]);
     }
   }
 
-  // Try contains fallback
+  // Try "contains tokens" fallback
   if (containsFallbackTokens.length) {
     const idx = findIdxByContains(headerMap, containsFallbackTokens);
     if (typeof idx !== "undefined") {
@@ -245,7 +273,7 @@ function getFieldFromRow(rowArr, headerMap, possibleNames, containsFallbackToken
 }
 
 /**
- * Locate header row if the sheet has title rows above table.
+ * Locate header row if sheet has title rows above table.
  * Searches for a row containing POL and POD (or synonyms).
  */
 function findHeaderRowIndex(rawMatrix, maxScanRows = 25) {
@@ -351,8 +379,6 @@ async function loadExcel() {
     }
   }
 
-  console.groupEnd();
-
   // ---------------- LOCAL CHARGES ----------------
   const wsLocal = workbook.Sheets[SHEET_LOCAL];
   if (wsLocal) {
@@ -363,6 +389,18 @@ async function loadExcel() {
     console.warn(`[RateFinder] No existe hoja "${SHEET_LOCAL}" (opcional).`);
   }
 
+  // ---------------- REMARKS ----------------
+  const wsRemarks = workbook.Sheets[SHEET_REMARKS];
+  if (wsRemarks) {
+    remarks = XLSX.utils.sheet_to_json(wsRemarks, { defval: "" });
+    console.log(`[RateFinder] Remarks rows: ${remarks.length}`);
+  } else {
+    remarks = [];
+    console.warn(`[RateFinder] No existe hoja "${SHEET_REMARKS}".`);
+  }
+
+  console.groupEnd();
+
   // Populate dropdowns
   const pols = uniqueSorted(rates.map((r) => r.POL).filter(Boolean));
   const pods = uniqueSorted(rates.map((r) => r.POD).filter(Boolean));
@@ -371,6 +409,7 @@ async function loadExcel() {
   renderSelect(elPOD, pods, "Selecciona POD");
 
   renderLocalCharges();
+  renderRemarks();
 
   setStatus(`Listo. Tarifas cargadas: ${rates.length}`);
   elBtn.disabled = false;
