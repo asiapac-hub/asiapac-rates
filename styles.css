@@ -257,3 +257,15 @@ select{
     grid-template-columns: 1fr;
   }
 }
+/* -------- Remarks Section -------- */
+
+.remarks-list{
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.remarks-list li{
+  margin: 6px 0;
+  line-height: 1.4;
+}
