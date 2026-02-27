@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ASIAPAC | Rate Finder</title>
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- SheetJS (lee Excel .xlsx en el navegador) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <main class="container">
+    <header class="header">
+      <img class="logo" src="assets/asiapac-logo.png" alt="ASIAPAC" />
+    </header>
+
+    <section class="card">
+      <h1 class="title">Rate Finder</h1>
+
+      <div class="filters">
+        <div class="field">
+          <label for="pol">Puerto de Embarque (POL)</label>
+          <select id="pol">
+            <option value="">Cargando...</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="pod">Puerto de Destino (POD)</label>
+          <select id="pod">
+            <option value="">Cargando...</option>
+          </select>
+        </div>
+
+        <button id="searchBtn" class="btn" type="button">Buscar</button>
+      </div>
+
+      <p id="status" class="status"></p>
+    </section>
+
+    <section class="card">
+      <h2 class="subtitle">Resultados</h2>
+      <div id="results"></div>
+    </section>
+
+    <section class="card">
+      <h2 class="subtitle">Gastos locales</h2>
+      <div id="localCharges" class="local"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
