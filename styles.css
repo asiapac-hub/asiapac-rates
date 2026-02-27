@@ -8,27 +8,32 @@
 }
 
 *{ box-sizing:border-box; }
+
 body{
   margin:0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   background:var(--bg);
   color:var(--text);
 }
+
 .container{
   max-width: 980px;
   margin: 0 auto;
-  padding: 24px 16px 60px;
+  padding: 16px 12px 56px;
 }
+
 .header{
   display:flex;
   align-items:center;
   justify-content:flex-start;
-  padding: 8px 0 18px;
+  padding: 8px 0 16px;
 }
+
 .logo{
   max-height: 70px;
   width:auto;
 }
+
 .card{
   background: var(--card);
   border: 1px solid var(--border);
@@ -36,51 +41,66 @@ body{
   padding: 18px;
   margin-top: 14px;
 }
+
 .title{
   margin:0 0 14px;
   font-size: 22px;
+  line-height: 1.2;
 }
+
 .subtitle{
   margin:0 0 12px;
   font-size: 18px;
+  line-height: 1.2;
 }
+
 .filters{
   display:grid;
   grid-template-columns: 1fr 1fr auto;
   gap: 12px;
   align-items:end;
 }
+
 .field label{
   display:block;
   font-size: 12px;
   color: var(--muted);
   margin-bottom: 6px;
 }
+
 select{
   width:100%;
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--border);
   background:#fff;
+  font-size: 14px;
 }
+
 .btn{
   padding: 11px 14px;
   border: 0;
   border-radius: 10px;
   background: var(--btn);
   color:#fff;
-  font-weight: 600;
+  font-weight: 700;
   cursor:pointer;
+  font-size: 14px;
+  white-space: nowrap;
 }
+
 .btn:disabled{
   opacity:.6;
   cursor:not-allowed;
 }
+
 .status{
   margin: 10px 0 0;
   color: var(--muted);
   font-size: 13px;
 }
+
+/* ---------- TABLE (Desktop base) ---------- */
 .table{
   width:100%;
   border-collapse: collapse;
@@ -89,6 +109,7 @@ select{
   overflow:hidden;
   border: 1px solid var(--border);
 }
+
 .table th, .table td{
   padding: 10px 10px;
   border-bottom: 1px solid var(--border);
@@ -96,11 +117,13 @@ select{
   text-align:left;
   vertical-align: top;
 }
+
 .table th{
   background:#fbfbfc;
   font-size: 12px;
   color: var(--muted);
 }
+
 .badge{
   display:inline-block;
   padding: 2px 8px;
@@ -110,6 +133,22 @@ select{
   font-size: 12px;
   color: var(--muted);
 }
+
+/* ---------- MOBILE-FRIENDLY TABLE WRAPPER ---------- */
+/* En móvil, la tabla no se rompe: se desplaza horizontalmente */
+.table-wrap{
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+}
+
+/* Evita que la tabla intente comprimir columnas demasiado en pantallas pequeñas */
+.table{
+  min-width: 760px;
+}
+
+/* ---------- LOCAL CHARGES ---------- */
 .local{
   background:#fff;
   border: 1px solid var(--border);
@@ -117,7 +156,62 @@ select{
   padding: 12px;
   font-size: 13px;
 }
+
+.local ul{
+  margin: 0;
+  padding-left: 18px;
+}
+
+.local li{
+  margin: 6px 0;
+}
+
+/* ---------- RESPONSIVE BREAKPOINTS ---------- */
 @media (max-width: 720px){
-  .filters{ grid-template-columns: 1fr; }
-  .btn{ width:100%; }
+  .container{
+    padding: 14px 10px 48px;
+  }
+
+  .logo{
+    max-height: 48px;
+  }
+
+  .card{
+    padding: 14px;
+  }
+
+  .filters{
+    grid-template-columns: 1fr;
+  }
+
+  .btn{
+    width:100%;
+    padding: 12px 14px;
+  }
+
+  select{
+    padding: 12px 12px;
+  }
+
+  .title{
+    font-size: 20px;
+  }
+
+  .subtitle{
+    font-size: 16px;
+  }
+}
+
+@media (max-width: 420px){
+  .header{
+    padding: 6px 0 12px;
+  }
+
+  .logo{
+    max-height: 42px;
+  }
+
+  .title{
+    font-size: 19px;
+  }
 }
