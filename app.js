@@ -1,353 +1,217 @@
-// app.js (FULL) — robust Excel parsing + debug logs
-// --------------------------------------------------
-
-const EXCEL_PATH = "data/tarifas.xlsx";
-const SHEET_RATES = "RATES";
-const SHEET_LOCAL = "GASTOS_LOCALES";
-
-// UI elements
-const elPOL = document.getElementById("pol");
-const elPOD = document.getElementById("pod");
-const elBtn = document.getElementById("searchBtn");
-const elResults = document.getElementById("results");
-const elLocal = document.getElementById("localCharges");
-const elStatus = document.getElementById("status");
-
-// Data holders
-let rates = [];        // parsed rows from RATES
-let localCharges = []; // parsed rows from GASTOS_LOCALES
-
-// -------------------- helpers --------------------
-
-function norm(v) {
-  return (v ?? "").toString().trim();
+:root{
+  --bg:#ffffff;
+  --text:#1a1a1a;
+  --muted:#666;
+  --card:#f6f7f9;
+  --border:#e2e5ea;
+  --btn:#ff4a1c;
 }
 
-/**
- * Normalize header keys to avoid mismatches:
- * - Unicode normalize (NFKC)
- * - Replace NBSP
- * - Remove punctuation/symbols
- * - Collapse whitespace
- * - Lowercase
- */
-function normKey(k) {
-  return String(k ?? "")
-    .normalize("NFKC")
-    .replace(/\u00A0/g, " ")       // NBSP -> space
-    .replace(/[^\w\d]/g, " ")      // punctuation -> space
-    .replace(/\s+/g, " ")          // collapse
-    .trim()
-    .toLowerCase();
+*{ box-sizing:border-box; }
+
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background:var(--bg);
+  color:var(--text);
 }
 
-function uniqueSorted(values) {
-  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+.container{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 16px 12px 56px;
 }
 
-function setStatus(msg) {
-  elStatus.textContent = msg || "";
+.header{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  padding: 8px 0 16px;
 }
 
-function safeNOR(value) {
-  const v = norm(value);
-  // If NOR is blank, show N/A
-  return v === "" ? "N/A" : v;
+.logo{
+  max-height: 70px;
+  width:auto;
 }
 
-function renderSelect(selectEl, values, placeholder) {
-  selectEl.innerHTML = "";
-  const opt0 = document.createElement("option");
-  opt0.value = "";
-  opt0.textContent = placeholder;
-  selectEl.appendChild(opt0);
-
-  values.forEach((v) => {
-    const opt = document.createElement("option");
-    opt.value = v;
-    opt.textContent = v;
-    selectEl.appendChild(opt);
-  });
+.card{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  margin-top: 14px;
 }
 
-// -------------------- rendering --------------------
+.title{
+  margin:0 0 14px;
+  font-size: 22px;
+  line-height: 1.2;
+}
 
-function renderResults(rows) {
-  if (!rows.length) {
-    elResults.innerHTML = `<p class="status">No se encontraron tarifas para esa combinación.</p>`;
-    return;
+.subtitle{
+  margin:0 0 12px;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.filters{
+  display:grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items:end;
+}
+
+.field label{
+  display:block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+select{
+  width:100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background:#fff;
+  font-size: 14px;
+}
+
+.btn{
+  padding: 11px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--btn);
+  color:#fff;
+  font-weight: 700;
+  cursor:pointer;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.btn:disabled{
+  opacity:.6;
+  cursor:not-allowed;
+}
+
+.status{
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---------- TABLE (Desktop base) ---------- */
+.table{
+  width:100%;
+  border-collapse: collapse;
+  background:#fff;
+  border-radius: 12px;
+  overflow:hidden;
+  border: 1px solid var(--border);
+}
+
+.table th, .table td{
+  padding: 10px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  text-align:left;
+  vertical-align: top;
+}
+
+.table th{
+  background:#fbfbfc;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.badge{
+  display:inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background:#fff;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- MOBILE-FRIENDLY TABLE WRAPPER ---------- */
+/* En móvil, la tabla no se rompe: se desplaza horizontalmente */
+.table-wrap{
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+}
+
+/* Evita que la tabla intente comprimir columnas demasiado en pantallas pequeñas */
+.table{
+  min-width: 760px;
+}
+
+/* ---------- LOCAL CHARGES ---------- */
+.local{
+  background:#fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 13px;
+}
+
+.local ul{
+  margin: 0;
+  padding-left: 18px;
+}
+
+.local li{
+  margin: 6px 0;
+}
+
+/* ---------- RESPONSIVE BREAKPOINTS ---------- */
+@media (max-width: 720px){
+  .container{
+    padding: 14px 10px 48px;
   }
 
-  const headers = ["POL", "POD", "NOR", "20GP", "40HC", "Validez", "Dias libres", "NAVIERA", "Agente"];
+  .logo{
+    max-height: 48px;
+  }
 
-  const thead = `
-    <thead>
-      <tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>
-    </thead>
-  `;
+  .card{
+    padding: 14px;
+  }
 
-  const tbody = `
-    <tbody>
-      ${rows
-        .map(
-          (r) => `
-        <tr>
-          <td>${norm(r.POL)}</td>
-          <td>${norm(r.POD)}</td>
-          <td><span class="badge">${safeNOR(r.NOR)}</span></td>
-          <td>${norm(r["20GP"])}</td>
-          <td>${norm(r["40HC"])}</td>
-          <td>${norm(r.Validez)}</td>
-          <td>${norm(r["Dias libres"])}</td>
-          <td>${norm(r.NAVIERA)}</td>
-          <td>${norm(r.Agente)}</td>
-        </tr>
-      `
-        )
-        .join("")}
-    </tbody>
-  `;
+  .filters{
+    grid-template-columns: 1fr;
+  }
 
-  elResults.innerHTML = `<table class="table">${thead}${tbody}</table>`;
+  .btn{
+    width:100%;
+    padding: 12px 14px;
+  }
+
+  select{
+    padding: 12px 12px;
+  }
+
+  .title{
+    font-size: 20px;
+  }
+
+  .subtitle{
+    font-size: 16px;
+  }
 }
 
-function renderLocalCharges() {
-  if (!localCharges.length) {
-    elLocal.innerHTML = `<p class="status">No se encontraron gastos locales en la hoja "${SHEET_LOCAL}".</p>`;
-    return;
+@media (max-width: 420px){
+  .header{
+    padding: 6px 0 12px;
   }
 
-  // If table-like: Concepto/Detalle
-  const hasConcepto = localCharges.some((r) => "Concepto" in r || "Detalle" in r || "CONCEPTO" in r || "DETALLE" in r);
-
-  if (hasConcepto) {
-    // accept upper/lower case keys
-    const rows = localCharges
-      .map((r) => ({
-        Concepto: norm(r.Concepto ?? r.CONCEPTO),
-        Detalle: norm(r.Detalle ?? r.DETALLE),
-      }))
-      .filter((r) => r.Concepto || r.Detalle);
-
-    elLocal.innerHTML = `
-      <table class="table">
-        <thead><tr><th>Concepto</th><th>Detalle</th></tr></thead>
-        <tbody>
-          ${rows.map((r) => `<tr><td>${r.Concepto}</td><td>${r.Detalle}</td></tr>`).join("")}
-        </tbody>
-      </table>
-    `;
-    return;
+  .logo{
+    max-height: 42px;
   }
 
-  // Otherwise treat as "free text" across any columns
-  const lines = [];
-  for (const r of localCharges) {
-    for (const k of Object.keys(r)) {
-      const v = norm(r[k]);
-      if (v) lines.push(v);
-    }
+  .title{
+    font-size: 19px;
   }
-
-  elLocal.innerHTML = `<ul>${lines.map((x) => `<li>${x}</li>`).join("")}</ul>`;
 }
-
-// -------------------- parsing logic --------------------
-
-/**
- * Build a header map: normalized header -> column index
- */
-function buildHeaderMap(rawHeaders) {
-  const headerMap = {};
-  rawHeaders.forEach((h, idx) => {
-    const nk = normKey(h);
-    if (nk) headerMap[nk] = idx;
-  });
-  return headerMap;
-}
-
-/**
- * Get a field from row array using multiple possible header names (aliases).
- * Returns "" if not found or blank.
- */
-function getFieldFromRow(rowArr, headerMap, possibleNames) {
-  for (const name of possibleNames) {
-    const idx = headerMap[normKey(name)];
-    if (typeof idx !== "undefined") {
-      const val = rowArr[idx];
-      const v = norm(val);
-      if (v !== "") return v;
-    }
-  }
-  return "";
-}
-
-/**
- * Attempt to locate the header row when the sheet has titles above.
- * Strategy: scan first N rows to find one that contains both POL and POD (or their synonyms).
- */
-function findHeaderRowIndex(rawMatrix, maxScanRows = 25) {
-  const mustHave = ["pol", "pod"]; // normalized tokens
-  const synonyms = {
-    pol: ["pol", "puerto de embarque", "puerto embarque", "puerto origen", "origen"],
-    pod: ["pod", "puerto de destino", "puerto destino", "destino"],
-  };
-
-  const limit = Math.min(rawMatrix.length, maxScanRows);
-  for (let i = 0; i < limit; i++) {
-    const row = rawMatrix[i] || [];
-    const normed = row.map((c) => normKey(c));
-    const hasPOL = normed.some((x) => synonyms.pol.map(normKey).includes(x));
-    const hasPOD = normed.some((x) => synonyms.pod.map(normKey).includes(x));
-
-    if (hasPOL && hasPOD) return i;
-  }
-  // fallback: assume first row
-  return 0;
-}
-
-async function loadExcel() {
-  setStatus("Cargando tarifas desde Excel...");
-  elBtn.disabled = true;
-
-  // Fetch xlsx
-  const res = await fetch(EXCEL_PATH, { cache: "no-store" });
-  if (!res.ok) throw new Error(`No se pudo cargar el archivo: ${EXCEL_PATH}`);
-
-  const arrayBuffer = await res.arrayBuffer();
-  const workbook = XLSX.read(arrayBuffer, { type: "array" });
-
-  // ---------------- RATES ----------------
-  const wsRates = workbook.Sheets[SHEET_RATES];
-  if (!wsRates) {
-    console.error("[RateFinder] Hojas disponibles:", workbook.SheetNames);
-    throw new Error(`No existe la hoja "${SHEET_RATES}". Hojas disponibles: ${workbook.SheetNames.join(", ")}`);
-  }
-
-  // Read as raw matrix (arrays) to handle messy headers
-  const raw = XLSX.utils.sheet_to_json(wsRates, { header: 1, defval: "" });
-
-  console.group("[RateFinder][DEBUG] Excel parse");
-  console.log("SheetNames:", workbook.SheetNames);
-  console.log("RATES rows (raw matrix length):", raw.length);
-
-  if (!raw || raw.length < 2) {
-    console.warn("[RateFinder] Hoja RATES vacía o insuficiente.");
-    rates = [];
-  } else {
-    // Find header row index (handles titles above table)
-    const headerRowIdx = findHeaderRowIndex(raw);
-    const rawHeaders = (raw[headerRowIdx] || []).map((h) => String(h ?? "").trim());
-
-    // Build headerMap
-    const headerMap = buildHeaderMap(rawHeaders);
-
-    console.log("HeaderRowIdx:", headerRowIdx);
-    console.log("RAW HEADERS:", rawHeaders);
-    console.log("NORMALIZED HEADERS:", rawHeaders.map(normKey));
-    console.log("HEADER MAP (normalized -> idx):", headerMap);
-
-    // Aliases (add more if your Excel uses different labels)
-    const aliases = {
-      POL: ["POL", "PUERTO DE EMBARQUE", "PUERTO EMBARQUE", "PUERTO ORIGEN", "ORIGEN"],
-      POD: ["POD", "PUERTO DE DESTINO", "PUERTO DESTINO", "DESTINO"],
-      NOR: ["NOR", "NON OPERATIVE REEFER", "NON OPPERATIVE REEFER"],
-
-      // Equipment
-      "20GP": ["20GP", "20 GP", "20'GP", "20'", "20FT", "20 FT"],
-      "40HC": ["40HC", "40 HC", "40'HC", "40' HC", "40FT HC", "40 FT HC", "40FT", "40 FT"],
-
-      // Other
-      Validez: ["VALIDEZ", "VALIDEZ TARIFA", "VALIDITY", "VALID"],
-      "Dias libres": ["DIAS LIBRES", "DÍAS LIBRES", "DIAS LIBRES DESTINO", "FREE DAYS", "FREE DAYS DESTINATION"],
-      NAVIERA: ["NAVIERA", "LINEA", "LÍNEA", "CARRIER"],
-      Agente: ["AGENTE", "AGENTE ORIGEN", "FREIGHT FORWARDER", "FORWARDER", "EMBARCADOR", "SHIPPER AGENT"],
-    };
-
-    // Slice rows below header row
-    const rows = raw.slice(headerRowIdx + 1);
-
-    // Build parsed rates
-    rates = rows
-      .map((rowArr) => ({
-        POL: getFieldFromRow(rowArr, headerMap, aliases.POL),
-        POD: getFieldFromRow(rowArr, headerMap, aliases.POD),
-        NOR: getFieldFromRow(rowArr, headerMap, aliases.NOR),
-        "20GP": getFieldFromRow(rowArr, headerMap, aliases["20GP"]),
-        "40HC": getFieldFromRow(rowArr, headerMap, aliases["40HC"]),
-        Validez: getFieldFromRow(rowArr, headerMap, aliases.Validez),
-        "Dias libres": getFieldFromRow(rowArr, headerMap, aliases["Dias libres"]),
-        NAVIERA: getFieldFromRow(rowArr, headerMap, aliases.NAVIERA),
-        Agente: getFieldFromRow(rowArr, headerMap, aliases.Agente),
-      }))
-      // keep rows that at least have POL/POD; adjust if you want stricter
-      .filter((r) => r.POL || r.POD);
-
-    console.log("Parsed rates length:", rates.length);
-    console.log("Parsed sample (first 5):", rates.slice(0, 5));
-
-    // Helpful debug: show rows that match selected example if needed
-    // console.log("Example matches FUZHOU->GUAYAQUIL:", rates.filter(r=>r.POL==="FUZHOU" && r.POD==="GUAYAQUIL"));
-  }
-
-  console.groupEnd();
-
-  // ---------------- LOCAL CHARGES ----------------
-  const wsLocal = workbook.Sheets[SHEET_LOCAL];
-  if (wsLocal) {
-    // Use object-based json for local charges; defval avoids undefined
-    localCharges = XLSX.utils.sheet_to_json(wsLocal, { defval: "" });
-    console.log(`[RateFinder] Local charges rows: ${localCharges.length}`);
-  } else {
-    localCharges = [];
-    console.warn(`[RateFinder] No existe hoja "${SHEET_LOCAL}" (esto es opcional).`);
-  }
-
-  // ---------------- Populate dropdowns ----------------
-  const pols = uniqueSorted(rates.map((r) => r.POL).filter(Boolean));
-  const pods = uniqueSorted(rates.map((r) => r.POD).filter(Boolean));
-
-  renderSelect(elPOL, pols, "Selecciona POL");
-  renderSelect(elPOD, pods, "Selecciona POD");
-
-  renderLocalCharges();
-
-  setStatus(`Listo. Tarifas cargadas: ${rates.length}`);
-  elBtn.disabled = false;
-}
-
-function onSearch() {
-  const pol = norm(elPOL.value);
-  const pod = norm(elPOD.value);
-
-  if (!pol || !pod) {
-    setStatus("Selecciona POL y POD para buscar.");
-    renderResults([]);
-    return;
-  }
-
-  setStatus(`Mostrando resultados para: ${pol} → ${pod}`);
-
-  // strict match after trim; if you need case-insensitive match, change here
-  const matches = rates.filter((r) => r.POL === pol && r.POD === pod);
-
-  console.group("[RateFinder][DEBUG] Search");
-  console.log("POL selected:", pol);
-  console.log("POD selected:", pod);
-  console.log("Matches found:", matches.length);
-  console.log("Matches:", matches);
-  console.groupEnd();
-
-  renderResults(matches);
-}
-
-// Wire events
-elBtn.addEventListener("click", onSearch);
-
-// Boot
-loadExcel().catch((err) => {
-  console.error("[RateFinder] Error loading Excel:", err);
-  setStatus(`Error: ${err.message}`);
-  elResults.innerHTML = `<p class="status">No se pudo cargar el Excel. Revisa la consola del navegador (F12) y la ruta del archivo.</p>`;
-  elBtn.disabled = true;
-});
