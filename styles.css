@@ -114,8 +114,8 @@ select{
   padding: 10px 10px;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
-  text-align:left;
-  vertical-align: top;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .table th{
