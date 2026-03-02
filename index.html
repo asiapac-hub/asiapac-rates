@@ -19,17 +19,24 @@
       <h1 class="title">Rate Finder</h1>
 
       <div class="filters">
+        <!-- POL autocomplete -->
         <div class="field">
-            <label for="polInput">Puerto de Embarque (POL)</label>
-             <input id="polInput" list="polList" placeholder="Escribe o selecciona POL" />
-            <datalist id="polList"></datalist>
+          <label for="polInput">Puerto de Embarque (POL)</label>
+          <div class="combo" data-combo="pol">
+            <input id="polInput" type="text" autocomplete="off" placeholder="Escribe o selecciona POL" />
+            <button class="combo-btn" type="button" aria-label="Abrir opciones POL">▾</button>
+            <div class="combo-menu" role="listbox" id="polMenu"></div>
+          </div>
         </div>
 
+        <!-- POD autocomplete -->
         <div class="field">
-          <label for="pod">Puerto de Destino (POD)</label>
-          <select id="pod">
-            <option value="">Cargando...</option>
-          </select>
+          <label for="podInput">Puerto de Destino (POD)</label>
+          <div class="combo" data-combo="pod">
+            <input id="podInput" type="text" autocomplete="off" placeholder="Escribe o selecciona POD" />
+            <button class="combo-btn" type="button" aria-label="Abrir opciones POD">▾</button>
+            <div class="combo-menu" role="listbox" id="podMenu"></div>
+          </div>
         </div>
 
         <button id="searchBtn" class="btn" type="button">Buscar</button>
@@ -49,9 +56,9 @@
     </section>
 
     <section class="card">
-  <h2 class="subtitle">Remarks</h2>
-  <div id="remarksSection"></div>
-</section>
+      <h2 class="subtitle">Remarks</h2>
+      <div id="remarksSection" class="remarks"></div>
+    </section>
   </main>
 
   <script src="app.js"></script>
