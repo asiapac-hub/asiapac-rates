@@ -5,6 +5,7 @@
   --card:#f6f7f9;
   --border:#e2e5ea;
   --btn:#ff4a1c;
+  --shadow: 0 8px 20px rgba(0,0,0,.08);
 }
 
 *{ box-sizing:border-box; }
@@ -68,15 +69,6 @@ body{
   margin-bottom: 6px;
 }
 
-select{
-  width:100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background:#fff;
-  font-size: 14px;
-}
-
 .btn{
   padding: 11px 14px;
   border: 0;
@@ -100,9 +92,82 @@ select{
   font-size: 13px;
 }
 
-/* ---------- TABLE (Desktop base) ---------- */
+/* ---------- Combo (autocomplete dropdown) ---------- */
+
+.combo{
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 42px;
+  gap: 8px;
+  align-items: center;
+}
+
+.combo input{
+  width:100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background:#fff;
+  font-size: 14px;
+}
+
+.combo-btn{
+  width: 42px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background:#fff;
+  cursor:pointer;
+  font-size: 14px;
+}
+
+.combo-menu{
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  max-height: 260px;
+  overflow: auto;
+  display: none;
+  z-index: 20;
+}
+
+.combo.open .combo-menu{
+  display: block;
+}
+
+.combo-option{
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.combo-option:hover{
+  background: #f3f4f6;
+}
+
+.combo-empty{
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---------- TABLE ---------- */
+
+.table-wrap{
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+}
+
 .table{
   width:100%;
+  min-width: 760px;
   border-collapse: collapse;
   background:#fff;
   border-radius: 12px;
@@ -114,8 +179,8 @@ select{
   padding: 10px 10px;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
-  text-align: center;
-  vertical-align: middle;
+  text-align: center;       /* ✅ centered values */
+  vertical-align: middle;   /* ✅ centered vertically */
 }
 
 .table th{
@@ -134,22 +199,9 @@ select{
   color: var(--muted);
 }
 
-/* ---------- MOBILE-FRIENDLY TABLE WRAPPER ---------- */
-/* En móvil, la tabla no se rompe: se desplaza horizontalmente */
-.table-wrap{
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  border-radius: 12px;
-}
+/* ---------- LOCAL CHARGES / REMARKS ---------- */
 
-/* Evita que la tabla intente comprimir columnas demasiado en pantallas pequeñas */
-.table{
-  min-width: 760px;
-}
-
-/* ---------- LOCAL CHARGES ---------- */
-.local{
+.local, .remarks{
   background:#fff;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -157,16 +209,18 @@ select{
   font-size: 13px;
 }
 
-.local ul{
+.remarks-list{
   margin: 0;
   padding-left: 18px;
 }
 
-.local li{
+.remarks-list li{
   margin: 6px 0;
+  line-height: 1.4;
 }
 
-/* ---------- RESPONSIVE BREAKPOINTS ---------- */
+/* ---------- RESPONSIVE ---------- */
+
 @media (max-width: 720px){
   .container{
     padding: 14px 10px 48px;
@@ -189,92 +243,22 @@ select{
     padding: 12px 14px;
   }
 
-  select{
+  .combo{
+    grid-template-columns: 1fr 44px;
+  }
+
+  .combo input{
     padding: 12px 12px;
   }
 
-  .title{
-    font-size: 20px;
+  .combo-btn{
+    height: 44px;
   }
 
-  .subtitle{
-    font-size: 16px;
-  }
+  .title{ font-size: 20px; }
+  .subtitle{ font-size: 16px; }
 }
 
 @media (max-width: 420px){
-  .header{
-    padding: 6px 0 12px;
-  }
-
-  .logo{
-    max-height: 42px;
-  }
-
-  .title{
-    font-size: 19px;
-  }
-}
-/* -------- Local charges: responsive layout -------- */
-
-.local-cards{
-  display: grid;
-  gap: 10px;
-}
-
-.local-card{
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
-}
-
-.local-card .lc-title{
-  font-weight: 700;
-  font-size: 14px;
-  margin: 0 0 6px;
-}
-
-.local-card .lc-row{
-  display: grid;
-  grid-template-columns: 120px 1fr;
-  gap: 8px;
-  font-size: 13px;
-  margin: 4px 0;
-}
-
-.local-card .lc-key{
-  color: var(--muted);
-}
-
-.local-card .lc-val{
-  word-break: break-word;
-}
-
-/* En pantallas muy pequeñas, apila key/val */
-@media (max-width: 420px){
-  .local-card .lc-row{
-    grid-template-columns: 1fr;
-  }
-}
-/* -------- Remarks Section -------- */
-
-.remarks-list{
-  margin: 0;
-  padding-left: 18px;
-  font-size: 13px;
-}
-
-input[list]{
-  width:100%;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background:#fff;
-  font-size: 14px;
-}
-
-.remarks-list li{
-  margin: 6px 0;
-  line-height: 1.4;
+  .logo{ max-height: 42px; }
 }
