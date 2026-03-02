@@ -265,6 +265,15 @@ select{
   font-size: 13px;
 }
 
+input[list]{
+  width:100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background:#fff;
+  font-size: 14px;
+}
+
 .remarks-list li{
   margin: 6px 0;
   line-height: 1.4;
