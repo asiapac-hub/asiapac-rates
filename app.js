@@ -7,7 +7,8 @@ const SHEET_LOCAL = "GASTOS_LOCALES";
 const SHEET_REMARKS = "REMARKS";
 
 // UI elements
-const elPOL = document.getElementById("pol");
+const elPOL = document.getElementById("polInput");
+const elPOLList = document.getElementById("polList");
 const elPOD = document.getElementById("pod");
 const elBtn = document.getElementById("searchBtn");
 const elResults = document.getElementById("results");
@@ -123,6 +124,8 @@ function renderLocalCharges() {
     elLocal.innerHTML = `<p class="status">No se encontraron gastos locales en la hoja "${SHEET_LOCAL}".</p>`;
     return;
   }
+function renderDatalist(datalistEl, values) {
+  datalistEl.innerHTML = values.map(v => `<option value="${v}"></option>`).join("");
 
   // helper: pick by possible keys
   const pick = (obj, keys) => {
@@ -405,7 +408,8 @@ async function loadExcel() {
   const pols = uniqueSorted(rates.map((r) => r.POL).filter(Boolean));
   const pods = uniqueSorted(rates.map((r) => r.POD).filter(Boolean));
 
-  renderSelect(elPOL, pols, "Selecciona POL");
+ renderDatalist(elPOLList, pols);
+elPOL.value = ""; // limpia input
   renderSelect(elPOD, pods, "Selecciona POD");
 
   renderLocalCharges();
