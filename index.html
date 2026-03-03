@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ASIAPAC | Rate Finder</title>
   <link rel="stylesheet" href="styles.css" />
-
-  <!-- SheetJS (lee Excel .xlsx en el navegador) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -19,7 +17,6 @@
       <h1 class="title">Rate Finder</h1>
 
       <div class="filters">
-        <!-- POL autocomplete -->
         <div class="field">
           <label for="polInput">Puerto de Embarque (POL)</label>
           <div class="combo" data-combo="pol">
@@ -29,7 +26,6 @@
           </div>
         </div>
 
-        <!-- POD autocomplete -->
         <div class="field">
           <label for="podInput">Puerto de Destino (POD)</label>
           <div class="combo" data-combo="pod">
@@ -37,9 +33,8 @@
             <button class="combo-btn" type="button" aria-label="Abrir opciones POD">▾</button>
             <div class="combo-menu" role="listbox" id="podMenu"></div>
           </div>
+          <!-- chips container is injected by JS -->
         </div>
-
-        <button id="searchBtn" class="btn" type="button">Buscar</button>
       </div>
 
       <p id="status" class="status"></p>
