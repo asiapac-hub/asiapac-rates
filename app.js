@@ -1,5 +1,5 @@
-// app.js (FULL) — POL controls POD options + POD multi-select + auto-search + reset POD on POL change
-// --------------------------------------------------------------------------------------------------
+// app.js (FULL) — No search button: auto-search on POL + POD selection
+// -------------------------------------------------------------------
 
 const EXCEL_PATH = "data/tarifas.xlsx";
 const SHEET_RATES = "RATES";
@@ -12,7 +12,6 @@ const elPOD = document.getElementById("podInput");
 const elPOLMenu = document.getElementById("polMenu");
 const elPODMenu = document.getElementById("podMenu");
 
-const elBtn = document.getElementById("searchBtn");
 const elResults = document.getElementById("results");
 const elLocal = document.getElementById("localCharges");
 const elRemarks = document.getElementById("remarksSection");
@@ -25,14 +24,11 @@ let remarks = [];
 let polOptions = [];
 let podOptionsAll = [];
 let selectedPODs = new Set();
-
-let currentPOL = ""; // track confirmed POL selection
+let currentPOL = "";
 
 // -------------------- Helpers --------------------
 
-function norm(v) {
-  return (v ?? "").toString().trim();
-}
+function norm(v) { return (v ?? "").toString().trim(); }
 
 function escapeHtml(str) {
   return String(str)
@@ -47,37 +43,27 @@ function uniqueSorted(values) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
-function setStatus(msg) {
-  elStatus.textContent = msg || "";
-}
+function setStatus(msg) { elStatus.textContent = msg || ""; }
 
 function pick(obj, keys) {
-  for (const k of keys) {
-    if (obj && Object.prototype.hasOwnProperty.call(obj, k)) return obj[k];
-  }
+  for (const k of keys) if (obj && Object.prototype.hasOwnProperty.call(obj, k)) return obj[k];
   return "";
 }
 
-// -------------------- Currency Handling --------------------
+// -------------------- Currency --------------------
 
 function isNA(value) {
   const v = norm(value).toUpperCase();
   return v === "N/A" || v === "NA" || v === "N.A." || v === "-";
 }
-
-function looksNumeric(value) {
-  return /\d/.test(String(value ?? ""));
-}
+function looksNumeric(value) { return /\d/.test(String(value ?? "")); }
 
 function normalizeCurrencyDisplay(value) {
   const v = norm(value);
   if (!v) return v;
   if (isNA(v)) return "N/A";
 
-  if (/^(USD|EUR)\s+/i.test(v)) {
-    return v.replace(/^(usd|eur)\b/i, (m) => m.toUpperCase());
-  }
-
+  if (/^(USD|EUR)\s+/i.test(v)) return v.replace(/^(usd|eur)\b/i, m => m.toUpperCase());
   if (v.includes("€")) return `EUR ${v.replace("€", "").trim()}`;
   if (v.includes("$")) return `USD ${v.replace("$", "").trim()}`;
 
@@ -92,7 +78,7 @@ function normalizeCurrencyDisplay(value) {
   return v;
 }
 
-// -------------------- Autocomplete (single select) --------------------
+// -------------------- Autocomplete --------------------
 
 function setupCombo(inputEl, menuEl, getOptions, onPick) {
   const root = inputEl.closest(".combo");
@@ -106,15 +92,10 @@ function setupCombo(inputEl, menuEl, getOptions, onPick) {
       menuEl.innerHTML = `<div class="combo-empty">No hay opciones</div>`;
       return;
     }
-    menuEl.innerHTML = values.map(v =>
-      `<div class="combo-option">${escapeHtml(v)}</div>`
-    ).join("");
+    menuEl.innerHTML = values.map(v => `<div class="combo-option">${escapeHtml(v)}</div>`).join("");
   }
 
-  function showAll() {
-    renderList(getOptions());
-    open();
-  }
+  function showAll() { renderList(getOptions()); open(); }
 
   function filter() {
     const q = inputEl.value.toLowerCase();
@@ -145,8 +126,6 @@ function setupCombo(inputEl, menuEl, getOptions, onPick) {
   document.addEventListener("click", e => {
     if (!root.contains(e.target)) close();
   });
-
-  return { showAll, close, open };
 }
 
 // -------------------- POD chips --------------------
@@ -157,40 +136,10 @@ function ensurePODChipsContainer() {
   if (!chips) {
     chips = document.createElement("div");
     chips.id = "podChips";
-    chips.className = "pod-chips"; // ✅ for CSS alignment
+    chips.className = "pod-chips";
     field.appendChild(chips);
   }
   return chips;
-}
-
-function injectChipStylesOnce() {
-  if (document.getElementById("chipStyles")) return;
-  const style = document.createElement("style");
-  style.id = "chipStyles";
-  style.textContent = `
-    .chip{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background:#fff;
-      font-size: 13px;
-      white-space: nowrap;
-    }
-    .chip-x{
-      border:0;
-      background:transparent;
-      cursor:pointer;
-      font-size: 16px;
-      line-height: 1;
-      color: var(--muted);
-      padding:0;
-    }
-    .chip-x:hover{ color:#000; }
-  `;
-  document.head.appendChild(style);
 }
 
 function renderPODChips() {
@@ -214,19 +163,17 @@ function renderPODChips() {
       const pod = btn.getAttribute("data-pod");
       selectedPODs.delete(pod);
       renderPODChips();
-      triggerAutoSearch(); // ✅ auto search when removing POD
+      triggerAutoSearch();
     });
   });
 }
 
-// -------------------- POL -> POD dependency --------------------
+// -------------------- POL -> POD options --------------------
 
 function computePODOptionsForPOL(pol) {
   if (!pol) return podOptionsAll;
   const set = new Set();
-  for (const r of rates) {
-    if (r.POL === pol && r.POD) set.add(r.POD);
-  }
+  for (const r of rates) if (r.POL === pol && r.POD) set.add(r.POD);
   return uniqueSorted([...set]);
 }
 
@@ -237,12 +184,11 @@ function resetPODSelection() {
 }
 
 function onPOLPicked(pol) {
-  // If POL changed, reset POD selection (requirement)
   if (pol && pol !== currentPOL) {
     currentPOL = pol;
-    resetPODSelection();
+    resetPODSelection(); // ✅ requirement
   }
-  triggerAutoSearch(); // auto search after POL change (will ask for POD if none)
+  triggerAutoSearch();
 }
 
 function addSelectedPOD(pod) {
@@ -255,7 +201,7 @@ function addSelectedPOD(pod) {
   selectedPODs.add(pod);
   elPOD.value = "";
   renderPODChips();
-  triggerAutoSearch(); // ✅ auto search when adding POD
+  triggerAutoSearch();
 }
 
 // -------------------- Results --------------------
@@ -268,11 +214,7 @@ function renderResults(rows) {
 
   const headers = ["POL", "POD", "NOR", "20GP", "40HC", "Validez", "Días libres", "Naviera", "Agente"];
 
-  const thead = `
-    <thead>
-      <tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr>
-    </thead>
-  `;
+  const thead = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>`;
 
   const tbody = `
     <tbody>
@@ -316,12 +258,7 @@ function renderLocalCharges() {
     <div class="table-wrap">
       <table class="table">
         <thead>
-          <tr>
-            <th>Concepto</th>
-            <th>Detalle</th>
-            <th>Cálculo</th>
-            <th></th>
-          </tr>
+          <tr><th>Concepto</th><th>Detalle</th><th>Cálculo</th><th></th></tr>
         </thead>
         <tbody>
           ${rows.map(r => `
@@ -347,67 +284,42 @@ function renderRemarks() {
   }
 
   const lines = [];
-  remarks.forEach(r => {
-    Object.values(r).forEach(val => {
-      const v = norm(val);
-      if (v) lines.push(v);
-    });
-  });
+  remarks.forEach(r => Object.values(r).forEach(val => { const v = norm(val); if (v) lines.push(v); }));
 
-  elRemarks.innerHTML = `
-    <ul class="remarks-list">
-      ${lines.map(l => `<li>${escapeHtml(l)}</li>`).join("")}
-    </ul>
-  `;
+  elRemarks.innerHTML = `<ul class="remarks-list">${lines.map(l => `<li>${escapeHtml(l)}</li>`).join("")}</ul>`;
 }
 
-// -------------------- Search (auto) --------------------
+// -------------------- Auto-search --------------------
 
 function triggerAutoSearch() {
-  // Keep it simple: if POL exists and at least one POD selected -> search
   const pol = norm(elPOL.value);
   if (!pol) {
     setStatus("Selecciona POL.");
     renderResults([]);
     return;
   }
-
   if (!selectedPODs.size) {
     setStatus("Selecciona al menos un POD.");
     renderResults([]);
     return;
   }
-
-  onSearch(); // run actual search
+  onSearch();
 }
 
 function onSearch() {
   const pol = norm(elPOL.value);
   const pods = [...selectedPODs];
-
-  if (!pol) {
-    setStatus("Selecciona POL.");
-    renderResults([]);
-    return;
-  }
-  if (!pods.length) {
-    setStatus("Selecciona al menos un POD.");
-    renderResults([]);
-    return;
-  }
-
   const podSet = new Set(pods);
-  setStatus(`Mostrando resultados para: ${pol} → ${pods.join(", ")}`);
 
+  setStatus(`Mostrando resultados para: ${pol} → ${pods.join(", ")}`);
   const matches = rates.filter(r => r.POL === pol && podSet.has(r.POD));
   renderResults(matches);
 }
 
-// -------------------- Excel Loading --------------------
+// -------------------- Load Excel --------------------
 
 async function loadExcel() {
   setStatus("Cargando tarifas...");
-  elBtn.disabled = true;
 
   const res = await fetch(EXCEL_PATH, { cache: "no-store" });
   if (!res.ok) throw new Error(`No se pudo cargar el archivo: ${EXCEL_PATH}`);
@@ -415,7 +327,6 @@ async function loadExcel() {
   const buffer = await res.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array" });
 
-  // RATES
   const wsRates = workbook.Sheets[SHEET_RATES];
   if (!wsRates) throw new Error(`No existe la hoja "${SHEET_RATES}".`);
 
@@ -435,11 +346,9 @@ async function loadExcel() {
     }))
     .filter(x => x.POL || x.POD);
 
-  // LOCAL
   const wsLocal = workbook.Sheets[SHEET_LOCAL];
   localCharges = wsLocal ? XLSX.utils.sheet_to_json(wsLocal, { raw: false, defval: "" }) : [];
 
-  // REMARKS
   const wsRemarks = workbook.Sheets[SHEET_REMARKS];
   remarks = wsRemarks ? XLSX.utils.sheet_to_json(wsRemarks, { raw: false, defval: "" }) : [];
 
@@ -448,41 +357,36 @@ async function loadExcel() {
 
   // reset state
   currentPOL = "";
-  resetPODSelection();
   elPOL.value = "";
-  elPOD.value = "";
+  resetPODSelection();
+
+  ensurePODChipsContainer();
+  renderPODChips();
 
   renderLocalCharges();
   renderRemarks();
 
   setStatus("Listo.");
-  elBtn.disabled = false;
 }
 
 // -------------------- Init --------------------
 
-injectChipStylesOnce();
-
-// Keep button as backup, but search is auto now
-elBtn.addEventListener("click", onSearch);
-
-// POL combo — selecting POL resets PODs and triggers auto search
+// POL: selection triggers reset POD + auto search
 setupCombo(elPOL, elPOLMenu, () => polOptions, (pol) => onPOLPicked(pol));
 
-// POD combo — options depend on POL, selection is multi
+// POD: options depend on selected POL, selection is multi
 setupCombo(
   elPOD,
   elPODMenu,
   () => {
     const pol = norm(elPOL.value);
     const valid = computePODOptionsForPOL(pol);
-    // hide already selected
     return valid.filter(p => !selectedPODs.has(p));
   },
   (pod) => addSelectedPOD(pod)
 );
 
-// If user types exact POD and presses Enter -> add
+// Enter on POD input adds if exact match
 elPOD.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
@@ -495,7 +399,7 @@ elPOD.addEventListener("keydown", (e) => {
   }
 });
 
-// If POL is typed manually, confirm on blur. If changed -> reset POD.
+// If POL typed manually, confirm on blur -> reset POD if changed
 elPOL.addEventListener("blur", () => {
   const pol = norm(elPOL.value);
   if (!pol) {
@@ -508,12 +412,7 @@ elPOL.addEventListener("blur", () => {
   if (polOptions.includes(pol)) onPOLPicked(pol);
 });
 
-// Render chips container early to reserve height (alignment fix)
-ensurePODChipsContainer();
-renderPODChips();
-
 loadExcel().catch((err) => {
   console.error("[RateFinder] Error:", err);
   setStatus(`Error: ${err.message}`);
-  elBtn.disabled = true;
 });
