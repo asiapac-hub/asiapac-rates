@@ -1,5 +1,5 @@
-// app.js (FULL) — Autocomplete + Excel parsing + Currency handling + Local + Remarks
-// -----------------------------------------------------------------------------------
+// app.js (FULL) — POL controls POD options + POD multi-select + Excel parsing + Currency handling + Local + Remarks
+// -------------------------------------------------------------------------------------------------------------
 
 const EXCEL_PATH = "data/tarifas.xlsx";
 const SHEET_RATES = "RATES";
@@ -11,6 +11,7 @@ const elPOL = document.getElementById("polInput");
 const elPOD = document.getElementById("podInput");
 const elPOLMenu = document.getElementById("polMenu");
 const elPODMenu = document.getElementById("podMenu");
+
 const elBtn = document.getElementById("searchBtn");
 const elResults = document.getElementById("results");
 const elLocal = document.getElementById("localCharges");
@@ -22,7 +23,9 @@ let localCharges = [];
 let remarks = [];
 
 let polOptions = [];
-let podOptions = [];
+let podOptionsAll = [];          // all PODs (used when no POL selected)
+let podOptionsForPOL = [];       // filtered PODs for selected POL
+let selectedPODs = new Set();    // multi-select
 
 // -------------------- Helpers --------------------
 
@@ -62,15 +65,13 @@ function isNA(value) {
 }
 
 function looksNumeric(value) {
-  // Has at least one digit
   return /\d/.test(String(value ?? ""));
 }
 
 /**
- * Keeps Excel text like "USD 3,420" or "EUR 1,570" as-is.
- * Converts "$ 3,420" -> "USD 3,420", "€ 1,570" -> "EUR 1,570".
- * If no currency is present, defaults to "USD <value>" ONLY when it looks numeric.
- * Never prefixes currency when value is N/A.
+ * Keeps "USD 3,420" / "EUR 1,570" as-is.
+ * Defaults to USD only if numeric-like.
+ * Never prefixes currency for N/A.
  */
 function normalizeCurrencyDisplay(value) {
   const v = norm(value);
@@ -78,17 +79,13 @@ function normalizeCurrencyDisplay(value) {
 
   if (isNA(v)) return "N/A";
 
-  // Already formatted like "USD 3,420" / "EUR 1,570"
   if (/^(USD|EUR)\s+/i.test(v)) {
-    // Keep original spacing; normalize currency code uppercase
     return v.replace(/^(usd|eur)\b/i, (m) => m.toUpperCase());
   }
 
-  // Symbol cases
   if (v.includes("€")) return `EUR ${v.replace("€", "").trim()}`;
   if (v.includes("$")) return `USD ${v.replace("$", "").trim()}`;
 
-  // Contains USD/EUR somewhere else -> normalize to "USD <amount>"
   const m = v.match(/\b(USD|EUR)\b/i);
   if (m) {
     const cur = m[1].toUpperCase();
@@ -96,16 +93,13 @@ function normalizeCurrencyDisplay(value) {
     return `${cur} ${rest}`.trim();
   }
 
-  // Default currency ONLY if numeric-looking
   if (looksNumeric(v)) return `USD ${v}`;
-
-  // Non-numeric text -> leave as-is
   return v;
 }
 
-// -------------------- Autocomplete --------------------
+// -------------------- Autocomplete base (single select) --------------------
 
-function setupCombo(inputEl, menuEl, getOptions) {
+function setupCombo(inputEl, menuEl, getOptions, onPick) {
   const root = inputEl.closest(".combo");
   const btn = root.querySelector(".combo-btn");
 
@@ -129,15 +123,15 @@ function setupCombo(inputEl, menuEl, getOptions) {
 
   function filter() {
     const q = inputEl.value.toLowerCase();
-    const filtered = getOptions().filter(x => x.toLowerCase().includes(q));
+    const all = getOptions();
+    const filtered = !q ? all : all.filter(x => x.toLowerCase().includes(q));
     renderList(filtered);
     open();
   }
 
-  // Requirement: click opens the menu (no need to type)
+  // Requirement: click opens menu
   inputEl.addEventListener("focus", showAll);
   inputEl.addEventListener("click", showAll);
-
   inputEl.addEventListener("input", filter);
 
   btn.addEventListener("click", () => {
@@ -148,13 +142,89 @@ function setupCombo(inputEl, menuEl, getOptions) {
   menuEl.addEventListener("click", e => {
     const opt = e.target.closest(".combo-option");
     if (!opt) return;
-    inputEl.value = opt.textContent;
+    const val = opt.textContent;
+    inputEl.value = val;
+    onPick?.(val);
     close();
   });
 
   document.addEventListener("click", e => {
     if (!root.contains(e.target)) close();
   });
+
+  return { showAll, close, open };
+}
+
+// -------------------- POD multi-select UI --------------------
+
+function ensurePODChipsContainer() {
+  const field = elPOD.closest(".field");
+  let chips = field.querySelector("#podChips");
+  if (!chips) {
+    chips = document.createElement("div");
+    chips.id = "podChips";
+    chips.style.display = "flex";
+    chips.style.flexWrap = "wrap";
+    chips.style.gap = "8px";
+    chips.style.marginTop = "10px";
+    field.appendChild(chips);
+  }
+  return chips;
+}
+
+function renderPODChips() {
+  const chips = ensurePODChipsContainer();
+  const arr = [...selectedPODs];
+
+  if (!arr.length) {
+    chips.innerHTML = "";
+    return;
+  }
+
+  chips.innerHTML = arr.map(pod => `
+    <span class="chip">
+      ${escapeHtml(pod)}
+      <button type="button" class="chip-x" data-pod="${escapeHtml(pod)}" aria-label="Quitar">×</button>
+    </span>
+  `).join("");
+
+  chips.querySelectorAll(".chip-x").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const pod = btn.getAttribute("data-pod");
+      selectedPODs.delete(pod);
+      renderPODChips();
+    });
+  });
+}
+
+// Add minimal chip styles if not present in CSS
+function injectChipStylesOnce() {
+  if (document.getElementById("chipStyles")) return;
+  const style = document.createElement("style");
+  style.id = "chipStyles";
+  style.textContent = `
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background:#fff;
+      font-size: 13px;
+    }
+    .chip-x{
+      border:0;
+      background:transparent;
+      cursor:pointer;
+      font-size: 16px;
+      line-height: 1;
+      color: var(--muted);
+      padding:0;
+    }
+    .chip-x:hover{ color:#000; }
+  `;
+  document.head.appendChild(style);
 }
 
 // -------------------- Results --------------------
@@ -260,6 +330,44 @@ function renderRemarks() {
   `;
 }
 
+// -------------------- POL -> POD dependency --------------------
+
+function computePODOptionsForPOL(pol) {
+  if (!pol) return podOptionsAll;
+
+  const set = new Set();
+  for (const r of rates) {
+    if (r.POL === pol && r.POD) set.add(r.POD);
+  }
+  return uniqueSorted([...set]);
+}
+
+function onPOLPicked(pol) {
+  // Update POD options based on POL
+  podOptionsForPOL = computePODOptionsForPOL(pol);
+
+  // Remove selected PODs that are no longer valid for this POL
+  for (const pod of [...selectedPODs]) {
+    if (!podOptionsForPOL.includes(pod)) selectedPODs.delete(pod);
+  }
+
+  // Clear POD input (so user can pick new ones)
+  elPOD.value = "";
+  renderPODChips();
+}
+
+function addSelectedPOD(pod) {
+  const pol = norm(elPOL.value);
+  const validSet = computePODOptionsForPOL(pol);
+
+  if (!pod) return;
+  if (!validSet.includes(pod)) return; // prevent invalid picks
+
+  selectedPODs.add(pod);
+  elPOD.value = ""; // keep ready for next selection
+  renderPODChips();
+}
+
 // -------------------- Excel Loading --------------------
 
 async function loadExcel() {
@@ -284,15 +392,12 @@ async function loadExcel() {
       POD: norm(pick(r, ["POD", "Pod", "PUERTO DE DESTINO"])),
       NOR: norm(pick(r, ["NOR", "Nor"])),
       "20GP": norm(pick(r, ["20GP", "20Gp", "20 GP"])),
-      // Excel might use 40HQ instead of 40HC:
       "40HC": norm(pick(r, ["40HC", "40 HQ", "40HQ", "40Hq"])),
-      // IMPORTANT: headers are uppercase in your file
       Validez: norm(pick(r, ["VALIDEZ", "Validez", "validez"])),
       "Dias libres": norm(pick(r, ["DIAS LIBRES", "Dias libres", "DÍAS LIBRES", "días libres"])),
       NAVIERA: norm(pick(r, ["NAVIERA", "Naviera", "naviera"])),
       Agente: norm(pick(r, ["AGENTE", "Agente", "agente"]))
     }))
-    // keep meaningful rows only
     .filter(x => x.POL || x.POD);
 
   // ---- LOCAL
@@ -303,12 +408,16 @@ async function loadExcel() {
   const wsRemarks = workbook.Sheets[SHEET_REMARKS];
   remarks = wsRemarks ? XLSX.utils.sheet_to_json(wsRemarks, { raw: false, defval: "" }) : [];
 
-  // Populate autocomplete options
+  // Options
   polOptions = uniqueSorted(rates.map(r => r.POL).filter(Boolean));
-  podOptions = uniqueSorted(rates.map(r => r.POD).filter(Boolean));
+  podOptionsAll = uniqueSorted(rates.map(r => r.POD).filter(Boolean));
+  podOptionsForPOL = podOptionsAll;
 
+  // Reset selections
+  selectedPODs.clear();
   elPOL.value = "";
   elPOD.value = "";
+  renderPODChips();
 
   renderLocalCharges();
   renderRemarks();
@@ -316,12 +425,9 @@ async function loadExcel() {
   setStatus("Listo.");
   elBtn.disabled = false;
 
-  // Debug (optional)
   console.group("[RateFinder][DEBUG]");
   console.log("Rates loaded:", rates.length);
   console.log("Sample rate:", rates[0]);
-  console.log("Local charges loaded:", localCharges.length);
-  console.log("Remarks loaded:", remarks.length);
   console.groupEnd();
 }
 
@@ -329,24 +435,78 @@ async function loadExcel() {
 
 function onSearch() {
   const pol = norm(elPOL.value);
-  const pod = norm(elPOD.value);
 
-  if (!pol || !pod) {
-    setStatus("Selecciona POL y POD.");
+  // If POL selected, POD must have at least one selection
+  if (!pol) {
+    setStatus("Selecciona POL.");
     renderResults([]);
     return;
   }
 
-  const matches = rates.filter(r => r.POL === pol && r.POD === pod);
+  // Compute valid pods for this pol
+  const validPods = computePODOptionsForPOL(pol);
+
+  // If user selected none, no results
+  const pods = [...selectedPODs].filter(p => validPods.includes(p));
+  if (!pods.length) {
+    setStatus("Selecciona al menos un POD.");
+    renderResults([]);
+    return;
+  }
+
+  setStatus(`Mostrando resultados para: ${pol} → ${pods.join(", ")}`);
+
+  const podSet = new Set(pods);
+  const matches = rates.filter(r => r.POL === pol && podSet.has(r.POD));
+
   renderResults(matches);
 }
 
 // -------------------- Init --------------------
 
+injectChipStylesOnce();
+
 elBtn.addEventListener("click", onSearch);
 
-setupCombo(elPOL, elPOLMenu, () => polOptions);
-setupCombo(elPOD, elPODMenu, () => podOptions);
+// POL combo: onPick updates POD options
+setupCombo(elPOL, elPOLMenu, () => polOptions, (pol) => onPOLPicked(pol));
+
+// POD combo: options depend on selected POL, and selection is MULTI
+setupCombo(elPOD, elPODMenu, () => {
+  const pol = norm(elPOL.value);
+  podOptionsForPOL = computePODOptionsForPOL(pol);
+
+  // Remove already selected from menu (optional, cleaner)
+  return podOptionsForPOL.filter(p => !selectedPODs.has(p));
+}, (pod) => addSelectedPOD(pod));
+
+// Also: when user types and presses Enter on POD input, add if exact match
+elPOD.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    const val = norm(elPOD.value);
+    if (!val) return;
+
+    const pol = norm(elPOL.value);
+    const valid = computePODOptionsForPOL(pol);
+    // Require exact match to avoid accidental adds
+    if (valid.includes(val)) addSelectedPOD(val);
+  }
+});
+
+// When POL text changes manually (typed), update POD options on blur
+elPOL.addEventListener("blur", () => {
+  const pol = norm(elPOL.value);
+  if (!pol) {
+    // reset pods when POL cleared
+    selectedPODs.clear();
+    podOptionsForPOL = podOptionsAll;
+    elPOD.value = "";
+    renderPODChips();
+    return;
+  }
+  if (polOptions.includes(pol)) onPOLPicked(pol);
+});
 
 loadExcel().catch((err) => {
   console.error("[RateFinder] Error:", err);
