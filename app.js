@@ -1,5 +1,5 @@
-// app.js (FULL) — POL controls POD options + POD multi-select + Excel parsing + Currency handling + Local + Remarks
-// -------------------------------------------------------------------------------------------------------------
+// app.js (FULL) — POL controls POD options + POD multi-select + auto-search + reset POD on POL change
+// --------------------------------------------------------------------------------------------------
 
 const EXCEL_PATH = "data/tarifas.xlsx";
 const SHEET_RATES = "RATES";
@@ -23,9 +23,10 @@ let localCharges = [];
 let remarks = [];
 
 let polOptions = [];
-let podOptionsAll = [];          // all PODs (used when no POL selected)
-let podOptionsForPOL = [];       // filtered PODs for selected POL
-let selectedPODs = new Set();    // multi-select
+let podOptionsAll = [];
+let selectedPODs = new Set();
+
+let currentPOL = ""; // track confirmed POL selection
 
 // -------------------- Helpers --------------------
 
@@ -68,15 +69,9 @@ function looksNumeric(value) {
   return /\d/.test(String(value ?? ""));
 }
 
-/**
- * Keeps "USD 3,420" / "EUR 1,570" as-is.
- * Defaults to USD only if numeric-like.
- * Never prefixes currency for N/A.
- */
 function normalizeCurrencyDisplay(value) {
   const v = norm(value);
   if (!v) return v;
-
   if (isNA(v)) return "N/A";
 
   if (/^(USD|EUR)\s+/i.test(v)) {
@@ -97,7 +92,7 @@ function normalizeCurrencyDisplay(value) {
   return v;
 }
 
-// -------------------- Autocomplete base (single select) --------------------
+// -------------------- Autocomplete (single select) --------------------
 
 function setupCombo(inputEl, menuEl, getOptions, onPick) {
   const root = inputEl.closest(".combo");
@@ -129,7 +124,6 @@ function setupCombo(inputEl, menuEl, getOptions, onPick) {
     open();
   }
 
-  // Requirement: click opens menu
   inputEl.addEventListener("focus", showAll);
   inputEl.addEventListener("click", showAll);
   inputEl.addEventListener("input", filter);
@@ -155,7 +149,7 @@ function setupCombo(inputEl, menuEl, getOptions, onPick) {
   return { showAll, close, open };
 }
 
-// -------------------- POD multi-select UI --------------------
+// -------------------- POD chips --------------------
 
 function ensurePODChipsContainer() {
   const field = elPOD.closest(".field");
@@ -163,13 +157,40 @@ function ensurePODChipsContainer() {
   if (!chips) {
     chips = document.createElement("div");
     chips.id = "podChips";
-    chips.style.display = "flex";
-    chips.style.flexWrap = "wrap";
-    chips.style.gap = "8px";
-    chips.style.marginTop = "10px";
+    chips.className = "pod-chips"; // ✅ for CSS alignment
     field.appendChild(chips);
   }
   return chips;
+}
+
+function injectChipStylesOnce() {
+  if (document.getElementById("chipStyles")) return;
+  const style = document.createElement("style");
+  style.id = "chipStyles";
+  style.textContent = `
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background:#fff;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .chip-x{
+      border:0;
+      background:transparent;
+      cursor:pointer;
+      font-size: 16px;
+      line-height: 1;
+      color: var(--muted);
+      padding:0;
+    }
+    .chip-x:hover{ color:#000; }
+  `;
+  document.head.appendChild(style);
 }
 
 function renderPODChips() {
@@ -193,38 +214,48 @@ function renderPODChips() {
       const pod = btn.getAttribute("data-pod");
       selectedPODs.delete(pod);
       renderPODChips();
+      triggerAutoSearch(); // ✅ auto search when removing POD
     });
   });
 }
 
-// Add minimal chip styles if not present in CSS
-function injectChipStylesOnce() {
-  if (document.getElementById("chipStyles")) return;
-  const style = document.createElement("style");
-  style.id = "chipStyles";
-  style.textContent = `
-    .chip{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      background:#fff;
-      font-size: 13px;
-    }
-    .chip-x{
-      border:0;
-      background:transparent;
-      cursor:pointer;
-      font-size: 16px;
-      line-height: 1;
-      color: var(--muted);
-      padding:0;
-    }
-    .chip-x:hover{ color:#000; }
-  `;
-  document.head.appendChild(style);
+// -------------------- POL -> POD dependency --------------------
+
+function computePODOptionsForPOL(pol) {
+  if (!pol) return podOptionsAll;
+  const set = new Set();
+  for (const r of rates) {
+    if (r.POL === pol && r.POD) set.add(r.POD);
+  }
+  return uniqueSorted([...set]);
+}
+
+function resetPODSelection() {
+  selectedPODs.clear();
+  elPOD.value = "";
+  renderPODChips();
+}
+
+function onPOLPicked(pol) {
+  // If POL changed, reset POD selection (requirement)
+  if (pol && pol !== currentPOL) {
+    currentPOL = pol;
+    resetPODSelection();
+  }
+  triggerAutoSearch(); // auto search after POL change (will ask for POD if none)
+}
+
+function addSelectedPOD(pod) {
+  const pol = norm(elPOL.value);
+  if (!pol) return;
+
+  const valid = computePODOptionsForPOL(pol);
+  if (!valid.includes(pod)) return;
+
+  selectedPODs.add(pod);
+  elPOD.value = "";
+  renderPODChips();
+  triggerAutoSearch(); // ✅ auto search when adding POD
 }
 
 // -------------------- Results --------------------
@@ -330,42 +361,46 @@ function renderRemarks() {
   `;
 }
 
-// -------------------- POL -> POD dependency --------------------
+// -------------------- Search (auto) --------------------
 
-function computePODOptionsForPOL(pol) {
-  if (!pol) return podOptionsAll;
-
-  const set = new Set();
-  for (const r of rates) {
-    if (r.POL === pol && r.POD) set.add(r.POD);
-  }
-  return uniqueSorted([...set]);
-}
-
-function onPOLPicked(pol) {
-  // Update POD options based on POL
-  podOptionsForPOL = computePODOptionsForPOL(pol);
-
-  // Remove selected PODs that are no longer valid for this POL
-  for (const pod of [...selectedPODs]) {
-    if (!podOptionsForPOL.includes(pod)) selectedPODs.delete(pod);
-  }
-
-  // Clear POD input (so user can pick new ones)
-  elPOD.value = "";
-  renderPODChips();
-}
-
-function addSelectedPOD(pod) {
+function triggerAutoSearch() {
+  // Keep it simple: if POL exists and at least one POD selected -> search
   const pol = norm(elPOL.value);
-  const validSet = computePODOptionsForPOL(pol);
+  if (!pol) {
+    setStatus("Selecciona POL.");
+    renderResults([]);
+    return;
+  }
 
-  if (!pod) return;
-  if (!validSet.includes(pod)) return; // prevent invalid picks
+  if (!selectedPODs.size) {
+    setStatus("Selecciona al menos un POD.");
+    renderResults([]);
+    return;
+  }
 
-  selectedPODs.add(pod);
-  elPOD.value = ""; // keep ready for next selection
-  renderPODChips();
+  onSearch(); // run actual search
+}
+
+function onSearch() {
+  const pol = norm(elPOL.value);
+  const pods = [...selectedPODs];
+
+  if (!pol) {
+    setStatus("Selecciona POL.");
+    renderResults([]);
+    return;
+  }
+  if (!pods.length) {
+    setStatus("Selecciona al menos un POD.");
+    renderResults([]);
+    return;
+  }
+
+  const podSet = new Set(pods);
+  setStatus(`Mostrando resultados para: ${pol} → ${pods.join(", ")}`);
+
+  const matches = rates.filter(r => r.POL === pol && podSet.has(r.POD));
+  renderResults(matches);
 }
 
 // -------------------- Excel Loading --------------------
@@ -380,7 +415,7 @@ async function loadExcel() {
   const buffer = await res.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: "array" });
 
-  // ---- RATES (raw:false to preserve formatted strings like "USD 3,420")
+  // RATES
   const wsRates = workbook.Sheets[SHEET_RATES];
   if (!wsRates) throw new Error(`No existe la hoja "${SHEET_RATES}".`);
 
@@ -392,7 +427,7 @@ async function loadExcel() {
       POD: norm(pick(r, ["POD", "Pod", "PUERTO DE DESTINO"])),
       NOR: norm(pick(r, ["NOR", "Nor"])),
       "20GP": norm(pick(r, ["20GP", "20Gp", "20 GP"])),
-      "40HC": norm(pick(r, ["40HC", "40 HQ", "40HQ", "40Hq"])),
+      "40HC": norm(pick(r, ["40HC", "40HQ", "40 HQ", "40Hq"])),
       Validez: norm(pick(r, ["VALIDEZ", "Validez", "validez"])),
       "Dias libres": norm(pick(r, ["DIAS LIBRES", "Dias libres", "DÍAS LIBRES", "días libres"])),
       NAVIERA: norm(pick(r, ["NAVIERA", "Naviera", "naviera"])),
@@ -400,87 +435,54 @@ async function loadExcel() {
     }))
     .filter(x => x.POL || x.POD);
 
-  // ---- LOCAL
+  // LOCAL
   const wsLocal = workbook.Sheets[SHEET_LOCAL];
   localCharges = wsLocal ? XLSX.utils.sheet_to_json(wsLocal, { raw: false, defval: "" }) : [];
 
-  // ---- REMARKS
+  // REMARKS
   const wsRemarks = workbook.Sheets[SHEET_REMARKS];
   remarks = wsRemarks ? XLSX.utils.sheet_to_json(wsRemarks, { raw: false, defval: "" }) : [];
 
-  // Options
   polOptions = uniqueSorted(rates.map(r => r.POL).filter(Boolean));
   podOptionsAll = uniqueSorted(rates.map(r => r.POD).filter(Boolean));
-  podOptionsForPOL = podOptionsAll;
 
-  // Reset selections
-  selectedPODs.clear();
+  // reset state
+  currentPOL = "";
+  resetPODSelection();
   elPOL.value = "";
   elPOD.value = "";
-  renderPODChips();
 
   renderLocalCharges();
   renderRemarks();
 
   setStatus("Listo.");
   elBtn.disabled = false;
-
-  console.group("[RateFinder][DEBUG]");
-  console.log("Rates loaded:", rates.length);
-  console.log("Sample rate:", rates[0]);
-  console.groupEnd();
-}
-
-// -------------------- Search --------------------
-
-function onSearch() {
-  const pol = norm(elPOL.value);
-
-  // If POL selected, POD must have at least one selection
-  if (!pol) {
-    setStatus("Selecciona POL.");
-    renderResults([]);
-    return;
-  }
-
-  // Compute valid pods for this pol
-  const validPods = computePODOptionsForPOL(pol);
-
-  // If user selected none, no results
-  const pods = [...selectedPODs].filter(p => validPods.includes(p));
-  if (!pods.length) {
-    setStatus("Selecciona al menos un POD.");
-    renderResults([]);
-    return;
-  }
-
-  setStatus(`Mostrando resultados para: ${pol} → ${pods.join(", ")}`);
-
-  const podSet = new Set(pods);
-  const matches = rates.filter(r => r.POL === pol && podSet.has(r.POD));
-
-  renderResults(matches);
 }
 
 // -------------------- Init --------------------
 
 injectChipStylesOnce();
 
+// Keep button as backup, but search is auto now
 elBtn.addEventListener("click", onSearch);
 
-// POL combo: onPick updates POD options
+// POL combo — selecting POL resets PODs and triggers auto search
 setupCombo(elPOL, elPOLMenu, () => polOptions, (pol) => onPOLPicked(pol));
 
-// POD combo: options depend on selected POL, and selection is MULTI
-setupCombo(elPOD, elPODMenu, () => {
-  const pol = norm(elPOL.value);
-  podOptionsForPOL = computePODOptionsForPOL(pol);
+// POD combo — options depend on POL, selection is multi
+setupCombo(
+  elPOD,
+  elPODMenu,
+  () => {
+    const pol = norm(elPOL.value);
+    const valid = computePODOptionsForPOL(pol);
+    // hide already selected
+    return valid.filter(p => !selectedPODs.has(p));
+  },
+  (pod) => addSelectedPOD(pod)
+);
 
-  // Remove already selected from menu (optional, cleaner)
-  return podOptionsForPOL.filter(p => !selectedPODs.has(p));
-}, (pod) => addSelectedPOD(pod));
-
-// Also: when user types and presses Enter on POD input, add if exact match
+// If user types exact POD and presses Enter -> add
 elPOD.addEventListener("keydown", (e) => {
   if (e.key === "Enter") {
     e.preventDefault();
@@ -489,24 +491,26 @@ elPOD.addEventListener("keydown", (e) => {
 
     const pol = norm(elPOL.value);
     const valid = computePODOptionsForPOL(pol);
-    // Require exact match to avoid accidental adds
     if (valid.includes(val)) addSelectedPOD(val);
   }
 });
 
-// When POL text changes manually (typed), update POD options on blur
+// If POL is typed manually, confirm on blur. If changed -> reset POD.
 elPOL.addEventListener("blur", () => {
   const pol = norm(elPOL.value);
   if (!pol) {
-    // reset pods when POL cleared
-    selectedPODs.clear();
-    podOptionsForPOL = podOptionsAll;
-    elPOD.value = "";
-    renderPODChips();
+    currentPOL = "";
+    resetPODSelection();
+    setStatus("Selecciona POL.");
+    renderResults([]);
     return;
   }
   if (polOptions.includes(pol)) onPOLPicked(pol);
 });
+
+// Render chips container early to reserve height (alignment fix)
+ensurePODChipsContainer();
+renderPODChips();
 
 loadExcel().catch((err) => {
   console.error("[RateFinder] Error:", err);
