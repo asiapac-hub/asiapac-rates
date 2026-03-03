@@ -262,3 +262,28 @@ body{
 @media (max-width: 420px){
   .logo{ max-height: 42px; }
 }
+/* --- Keep POL & POD always aligned on desktop --- */
+.filters{
+  align-items: start; /* evita que el chip-container cambie la altura del row */
+}
+
+.field{
+  display: flex;
+  flex-direction: column;
+}
+
+.pod-chips{
+  min-height: 34px;   /* reserva espacio fijo aunque no haya chips */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* En desktop, mantiene el botón buscar alineado */
+@media (min-width: 721px){
+  .btn{
+    align-self: end;
+    height: 42px;
+  }
+}
